@@ -72,16 +72,8 @@
 		D480229C206B67C70033E202 /* FeedbackViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D480229B206B67C70033E202 /* FeedbackViewController.swift */; };
 		D480229E206B67FE0033E202 /* LoginViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D480229D206B67FE0033E202 /* LoginViewController.swift */; };
 		D4805CED21D893AF00286ED4 /* SlideMenuController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4805CEB21D893AE00286ED4 /* SlideMenuController.swift */; };
-		D4805CFC21D8B87A00286ED4 /* ExSlideMenuController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4805CF621D8B87A00286ED4 /* ExSlideMenuController.swift */; };
 		D4805D0621D8B8B100286ED4 /* ImageHeaderView.xib in Resources */ = {isa = PBXBuildFile; fileRef = D4805D0421D8B8B100286ED4 /* ImageHeaderView.xib */; };
 		D4805D0721D8B8B100286ED4 /* DataTableViewCell.xib in Resources */ = {isa = PBXBuildFile; fileRef = D4805D0521D8B8B100286ED4 /* DataTableViewCell.xib */; };
-		D4805D1121D8BA5D00286ED4 /* UIColor.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4805D0921D8BA5C00286ED4 /* UIColor.swift */; };
-		D4805D1321D8BA5D00286ED4 /* UIImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4805D0B21D8BA5C00286ED4 /* UIImage.swift */; };
-		D4805D1421D8BA5D00286ED4 /* String.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4805D0C21D8BA5C00286ED4 /* String.swift */; };
-		D4805D1521D8BA5D00286ED4 /* UIApplication.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4805D0D21D8BA5C00286ED4 /* UIApplication.swift */; };
-		D4805D1621D8BA5D00286ED4 /* UIView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4805D0E21D8BA5C00286ED4 /* UIView.swift */; };
-		D4805D1721D8BA5D00286ED4 /* UITableViewExtension.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4805D0F21D8BA5C00286ED4 /* UITableViewExtension.swift */; };
-		D4805D1821D8BA5D00286ED4 /* UIViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4805D1021D8BA5D00286ED4 /* UIViewController.swift */; };
 		D4805D1A21DA1B5400286ED4 /* LeftNavigationTableViewCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4805D1921DA1B5400286ED4 /* LeftNavigationTableViewCell.swift */; };
 		D4805D1C21DA1B6B00286ED4 /* RightNavigationTableViewCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4805D1B21DA1B6B00286ED4 /* RightNavigationTableViewCell.swift */; };
 		D4805D1E21DA1C2300286ED4 /* LeftTableViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4805D1D21DA1C2300286ED4 /* LeftTableViewController.swift */; };
@@ -287,16 +279,8 @@
 		D480229B206B67C70033E202 /* FeedbackViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedbackViewController.swift; sourceTree = "<group>"; };
 		D480229D206B67FE0033E202 /* LoginViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginViewController.swift; sourceTree = "<group>"; };
 		D4805CEB21D893AE00286ED4 /* SlideMenuController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SlideMenuController.swift; sourceTree = "<group>"; };
-		D4805CF621D8B87A00286ED4 /* ExSlideMenuController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ExSlideMenuController.swift; sourceTree = "<group>"; };
 		D4805D0421D8B8B100286ED4 /* ImageHeaderView.xib */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.xib; path = ImageHeaderView.xib; sourceTree = "<group>"; };
 		D4805D0521D8B8B100286ED4 /* DataTableViewCell.xib */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.xib; path = DataTableViewCell.xib; sourceTree = "<group>"; };
-		D4805D0921D8BA5C00286ED4 /* UIColor.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = UIColor.swift; sourceTree = "<group>"; };
-		D4805D0B21D8BA5C00286ED4 /* UIImage.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = UIImage.swift; sourceTree = "<group>"; };
-		D4805D0C21D8BA5C00286ED4 /* String.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = String.swift; sourceTree = "<group>"; };
-		D4805D0D21D8BA5C00286ED4 /* UIApplication.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = UIApplication.swift; sourceTree = "<group>"; };
-		D4805D0E21D8BA5C00286ED4 /* UIView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = UIView.swift; sourceTree = "<group>"; };
-		D4805D0F21D8BA5C00286ED4 /* UITableViewExtension.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = UITableViewExtension.swift; sourceTree = "<group>"; };
-		D4805D1021D8BA5D00286ED4 /* UIViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = UIViewController.swift; sourceTree = "<group>"; };
 		D4805D1921DA1B5400286ED4 /* LeftNavigationTableViewCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeftNavigationTableViewCell.swift; sourceTree = "<group>"; };
 		D4805D1B21DA1B6B00286ED4 /* RightNavigationTableViewCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RightNavigationTableViewCell.swift; sourceTree = "<group>"; };
 		D4805D1D21DA1C2300286ED4 /* LeftTableViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeftTableViewController.swift; sourceTree = "<group>"; };
@@ -471,7 +455,6 @@
 		D480225820688A180033E202 /* shinnyfutures */ = {
 			isa = PBXGroup;
 			children = (
-				D4805D0821D8BA3100286ED4 /* Extension */,
 				D4F1E1AB206E33C400BC1C50 /* Controller */,
 				D4F1E1AA206E339B00BC1C50 /* View */,
 				D4F1E1A9206E339300BC1C50 /* Model */,
@@ -501,20 +484,6 @@
 				D480227B20688A180033E202 /* Info.plist */,
 			);
 			path = shinnyfuturesUITests;
-			sourceTree = "<group>";
-		};
-		D4805D0821D8BA3100286ED4 /* Extension */ = {
-			isa = PBXGroup;
-			children = (
-				D4805D0C21D8BA5C00286ED4 /* String.swift */,
-				D4805D0D21D8BA5C00286ED4 /* UIApplication.swift */,
-				D4805D0921D8BA5C00286ED4 /* UIColor.swift */,
-				D4805D0B21D8BA5C00286ED4 /* UIImage.swift */,
-				D4805D0F21D8BA5C00286ED4 /* UITableViewExtension.swift */,
-				D4805D0E21D8BA5C00286ED4 /* UIView.swift */,
-				D4805D1021D8BA5D00286ED4 /* UIViewController.swift */,
-			);
-			path = Extension;
 			sourceTree = "<group>";
 		};
 		D4F1E1A8206E336200BC1C50 /* Interface */ = {
@@ -618,7 +587,6 @@
 		D4F1E1AB206E33C400BC1C50 /* Controller */ = {
 			isa = PBXGroup;
 			children = (
-				D4805CF621D8B87A00286ED4 /* ExSlideMenuController.swift */,
 				D4805D1D21DA1C2300286ED4 /* LeftTableViewController.swift */,
 				D4805D1F21DA1C3600286ED4 /* RightTableViewController.swift */,
 				D4805CEB21D893AE00286ED4 /* SlideMenuController.swift */,
@@ -939,7 +907,6 @@
 				D420B2E720E0964E0045B6AF /* CurrentDayYAxisRenderer.swift in Sources */,
 				D4195FC120907C550072C021 /* TDWebSocketUtils.swift in Sources */,
 				D4805D1C21DA1B6B00286ED4 /* RightNavigationTableViewCell.swift in Sources */,
-				D4805D1821D8BA5D00286ED4 /* UIViewController.swift in Sources */,
 				D4F10EA320A5780000DC9E1C /* ConfirmSettlementView.swift in Sources */,
 				D415D0C620DCD6F700EA8DA3 /* KlineMarkerView.swift in Sources */,
 				D47F66E7215BA7110068C853 /* ResponsibilityView.swift in Sources */,
@@ -952,8 +919,6 @@
 				D48606A820A4429200C4FEB5 /* QuoteConstants.swift in Sources */,
 				D447698121A7BF8000620CA0 /* OptionalTableViewCell.swift in Sources */,
 				D4B2346921DDEE280073498C /* ReqPeekMessage.swift in Sources */,
-				D4805D1321D8BA5D00286ED4 /* UIImage.swift in Sources */,
-				D4805D1421D8BA5D00286ED4 /* String.swift in Sources */,
 				D4B3DBCF207B65BE00545376 /* TransactionViewController.swift in Sources */,
 				D47A4E852089958A00255276 /* FileUtils.swift in Sources */,
 				D466AB3A21B7C63000B6E4F6 /* Position.swift in Sources */,
@@ -963,21 +928,18 @@
 				D415D0C520DCD6F700EA8DA3 /* CurrentDayMarkerView.swift in Sources */,
 				D466AB3621B7C30B00B6E4F6 /* User.swift in Sources */,
 				D4F4E18920AEA080007A2975 /* PriceKeyboardView.swift in Sources */,
-				D4805D1621D8BA5D00286ED4 /* UIView.swift in Sources */,
 				D4B2346121DDEAC00073498C /* ReqCancelOrder.swift in Sources */,
 				D466D4CF2137D47500FD6FBA /* BankTransferViewController.swift in Sources */,
 				D48606AE20A444BA00C4FEB5 /* ChartConstants.swift in Sources */,
 				D485107B20CB7C8E00EC0B19 /* NotifyConstants.swift in Sources */,
 				D466D4D32138225200FD6FBA /* BankTransferTableViewCell.swift in Sources */,
 				D48E662F20B4235A00C808C2 /* BaseChartViewController.swift in Sources */,
-				D4805CFC21D8B87A00286ED4 /* ExSlideMenuController.swift in Sources */,
 				D48606A220A3EA8100C4FEB5 /* PopupCollectionViewCell.swift in Sources */,
 				D4B3DBCB2074C59300545376 /* OrderTableViewController.swift in Sources */,
 				D485107920CB7A4C00EC0B19 /* RtnTDConstants.swift in Sources */,
 				D49A7187207399C000AA947A /* TradeTableViewCell.swift in Sources */,
 				D420B2F420E2207F0045B6AF /* KlineXAxisRenderer.swift in Sources */,
 				D47A4E7D2087353100255276 /* DrawerStackView.swift in Sources */,
-				D4805D1121D8BA5D00286ED4 /* UIColor.swift in Sources */,
 				D4B2346B21DDEEA70073498C /* ReqSubscribeQuote.swift in Sources */,
 				D4B2345821DDAFB90073498C /* BrokerTableViewController.swift in Sources */,
 				D47A4E872089BBF100255276 /* CommonConstants.swift in Sources */,
@@ -1018,13 +980,11 @@
 				D4805D2021DA1C3600286ED4 /* RightTableViewController.swift in Sources */,
 				D4195FCF20994D560072C021 /* TradeConstants.swift in Sources */,
 				D480229C206B67C70033E202 /* FeedbackViewController.swift in Sources */,
-				D4805D1521D8BA5D00286ED4 /* UIApplication.swift in Sources */,
 				D420B2E820E0964E0045B6AF /* CurrentDayXAxisRenderer.swift in Sources */,
 				D47A4E812088928300255276 /* DataManager.swift in Sources */,
 				D4B3DBD7207CB82C00545376 /* KlineViewController.swift in Sources */,
 				D4B2346D21DDEEE50073498C /* ReqSetChart.swift in Sources */,
 				D420B2DD20E091300045B6AF /* CurrentDayCombinedChartView.swift in Sources */,
-				D47F66F1216B58010068C853 /* LocalCommonConstants.swift in Sources */,
 				D4B2345B21DDAFD20073498C /* BrokerTableViewCell.swift in Sources */,
 				D4B2346521DDEDA90073498C /* ReqConfirmSettlement.swift in Sources */,
 				D47A4E772085D0FF00255276 /* QuoteNavigationCollectionViewCell.swift in Sources */,
@@ -1047,7 +1007,6 @@
 				D44934EB21B0CFFC0069422F /* Quote.swift in Sources */,
 				D4B3DBD3207CB7BA00545376 /* KlinePageViewController.swift in Sources */,
 				D4B2346F21DDEF3A0073498C /* ReqSetChartKline.swift in Sources */,
-				D4805D1721D8BA5D00286ED4 /* UITableViewExtension.swift in Sources */,
 				D44934ED21B0DCA80069422F /* RtnMD.swift in Sources */,
 				D4B2345F21DDEA340073498C /* ReqBankTransfer.swift in Sources */,
 			);
@@ -1248,7 +1207,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.shinnytech.zhongqihuo;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE = "";
-				PROVISIONING_PROFILE_SPECIFIER = zhongqihuo2019;
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_OBJC_BRIDGING_HEADER = "$(PROJECT_DIR)/shinnyfutures/shinnyfutures-Bridging-Header.h";
 				SWIFT_VERSION = 4.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -1283,7 +1242,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.shinnytech.zhongqihuo;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE = "";
-				PROVISIONING_PROFILE_SPECIFIER = zhongqihuo2019;
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_OBJC_BRIDGING_HEADER = "$(PROJECT_DIR)/shinnyfutures/shinnyfutures-Bridging-Header.h";
 				SWIFT_VERSION = 4.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
