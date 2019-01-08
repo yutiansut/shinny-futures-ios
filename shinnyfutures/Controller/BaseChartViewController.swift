@@ -8,7 +8,6 @@
 
 import UIKit
 import Charts
-import SwiftyJSON
 
 class BaseChartViewController: UIViewController, ChartViewDelegate {
 
@@ -17,8 +16,6 @@ class BaseChartViewController: UIViewController, ChartViewDelegate {
     weak var chartView: CombinedChartView!
     //图表背景色
     var colorChartBackground: UIColor?
-    //轴线颜色
-    var colorAxis: UIColor?
     //文字颜色
     var colorText: UIColor?
     //栅格线颜色
@@ -35,15 +32,19 @@ class BaseChartViewController: UIViewController, ChartViewDelegate {
     var isShowAverageLine = true
     //持仓线数据
     var positionLimitLines = [String: ChartLimitLine]()
+    //持仓手数
+    var positionVolumes = [String: Int]()
     //挂单数据
     var orderLimitLines = [String: ChartLimitLine]()
+    //挂单手数
+    var orderVolumes = [String: Int]()
 
     let dataManager = DataManager.getInstance()
     let calendar = Calendar.autoupdatingCurrent
     var simpleDateFormat = DateFormatter()
     var xVals = [Int: Int]()
-    var dataEntities = [String: JSON]()
     var klineType = ""
+    var fragmentType = ""
     var doubleTap: UITapGestureRecognizer!
     var singleTap: UITapGestureRecognizer!
 
@@ -54,19 +55,19 @@ class BaseChartViewController: UIViewController, ChartViewDelegate {
         NotificationCenter.default.addObserver(self, selector: #selector(controlOrderLine), name: Notification.Name(CommonConstants.ControlOrderLineNotification), object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(controlAverageLine), name: Notification.Name(CommonConstants.ControlAverageLineNotification), object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(clearChartView), name: Notification.Name(CommonConstants.ClearChartViewNotification), object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(switchKlineType(_:)), name: Notification.Name(CommonConstants.SwitchDurationNotification), object: nil)
     }
 
     override func viewWillAppear(_ animated: Bool) {
-        refreshPage()
-
         NotificationCenter.default.addObserver(self, selector: #selector(refreshTradeLine), name: Notification.Name(CommonConstants.RtnTDNotification), object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(refreshKline), name: Notification.Name(CommonConstants.RtnMDNotification), object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(sendChart), name: Notification.Name(CommonConstants.SwitchQuoteNotification), object: nil)
+
+        clearChartView()
+        sendChart()
     }
 
     override func viewWillDisappear(_ animated: Bool) {
-        cancelChart()
-
         NotificationCenter.default.removeObserver(self, name: Notification.Name(CommonConstants.RtnTDNotification), object: nil)
         NotificationCenter.default.removeObserver(self, name: Notification.Name(CommonConstants.RtnMDNotification), object: nil)
         NotificationCenter.default.removeObserver(self, name: Notification.Name(CommonConstants.SwitchQuoteNotification), object: nil)
@@ -78,52 +79,47 @@ class BaseChartViewController: UIViewController, ChartViewDelegate {
         NotificationCenter.default.removeObserver(self, name: Notification.Name(CommonConstants.ControlOrderLineNotification), object: nil)
         NotificationCenter.default.removeObserver(self, name: Notification.Name(CommonConstants.ControlAverageLineNotification), object: nil)
         NotificationCenter.default.removeObserver(self, name: Notification.Name(CommonConstants.ClearChartViewNotification), object: nil)
+        NotificationCenter.default.removeObserver(self, name: Notification.Name(CommonConstants.SwitchDurationNotification), object: nil)
     }
 
     @objc func sendChart() {
+
         let instrumentId = dataManager.sInstrumentId
-        switch klineType {
-        case CommonConstants.CURRENT_DAY:
+        if CommonConstants.CURRENT_DAY_FRAGMENT.elementsEqual(fragmentType){
             MDWebSocketUtils.getInstance().sendSetChart(insList: instrumentId)
-        case CommonConstants.KLINE_DAY:
-            MDWebSocketUtils.getInstance().sendSetChartDay(insList: instrumentId, viewWidth: CommonConstants.VIEW_WIDTH)
-        case CommonConstants.KLINE_HOUR:
-            MDWebSocketUtils.getInstance().sendSetChartHour(insList: instrumentId, viewWidth: CommonConstants.VIEW_WIDTH)
-        case CommonConstants.KLINE_MINUTE:
-            MDWebSocketUtils.getInstance().sendSetChartMinute(insList: instrumentId, viewWidth: CommonConstants.VIEW_WIDTH)
-        default:
-            break
+        }else{
+            switch fragmentType {
+            case CommonConstants.DAY_FRAGMENT:
+                if let klineType = UserDefaults.standard.string(forKey: CommonConstants.CONFIG_KLINE_DAY_TYPE){
+                    self.klineType = klineType
+                }
+            case CommonConstants.HOUR_FRAGMENT:
+                if let klineType = UserDefaults.standard.string(forKey: CommonConstants.CONFIG_KLINE_HOUR_TYPE){
+                    self.klineType = klineType
+                }
+            case CommonConstants.MINUTE_FRAGMENT:
+                if let klineType = UserDefaults.standard.string(forKey: CommonConstants.CONFIG_KLINE_MINUTE_TYPE){
+                    self.klineType = klineType
+                }
+            case CommonConstants.SECOND_FRAGMENT:
+                if let klineType = UserDefaults.standard.string(forKey: CommonConstants.CONFIG_KLINE_SECOND_TYPE){
+                    self.klineType = klineType
+                }
+            default:
+                break
+            }
+            print(self.klineType)
+            MDWebSocketUtils.getInstance().sendSetChartKline(insList: instrumentId, klineType: self.klineType, viewWidth: CommonConstants.VIEW_WIDTH)
         }
-    }
-
-    func cancelChart() {
-        switch klineType {
-        case CommonConstants.CURRENT_DAY:
-            MDWebSocketUtils.getInstance().sendSetChart(insList: "")
-        case CommonConstants.KLINE_DAY:
-            MDWebSocketUtils.getInstance().sendSetChartDay(insList: "", viewWidth: CommonConstants.VIEW_WIDTH)
-        case CommonConstants.KLINE_HOUR:
-            MDWebSocketUtils.getInstance().sendSetChartHour(insList: "", viewWidth: CommonConstants.VIEW_WIDTH)
-        case CommonConstants.KLINE_MINUTE:
-            MDWebSocketUtils.getInstance().sendSetChartMinute(insList: "", viewWidth: CommonConstants.VIEW_WIDTH)
-        default:
-            break
-        }
-    }
-
-    func refreshPage() {
-        refreshKline()
-        sendChart()
     }
 
     // MARK: functions
     func initChart() {
         colorChartBackground = UIColor.black
-        colorAxis = UIColor.black
         colorText = UIColor.white
-        colorGrid = UIColor.red
-        colorSell = UIColor.green
-        colorBuy = UIColor.red
+        colorGrid = CommonConstants.KLINE_GRID
+        colorSell = CommonConstants.KLINE_PO_LINE_SELL
+        colorBuy = CommonConstants.KLINE_PO_LINE_BUY
         chartView.delegate = self
         chartView.chartDescription?.enabled = false
         chartView.drawValueAboveBarEnabled = false
@@ -161,10 +157,10 @@ class BaseChartViewController: UIViewController, ChartViewDelegate {
         addShortPositionLimitLine()
     }
 
-    func generatePositionLimitLine(limit: String, label: String, color: UIColor, limitKey: String) {
+    func generatePositionLimitLine(limit: String, label: String, color: UIColor, limitKey: String, volume: Int) {
         if let limit = Double(limit) {
             let chartLimitLine = ChartLimitLine(limit: limit, label: label)
-            chartLimitLine.lineWidth = 1.0
+            chartLimitLine.lineWidth = 0.7
             chartLimitLine.lineDashLengths = [10.0, 10.0]
             chartLimitLine.lineDashPhase = 0.0
             chartLimitLine.lineColor = color
@@ -172,6 +168,7 @@ class BaseChartViewController: UIViewController, ChartViewDelegate {
             chartLimitLine.valueFont = UIFont.systemFont(ofSize: 10.0)
             chartLimitLine.valueTextColor = colorText!
             positionLimitLines[limitKey] = chartLimitLine
+            positionVolumes[limitKey] = volume
             chartView.leftAxis.addLimitLine(chartLimitLine)
         }
     }
@@ -182,15 +179,15 @@ class BaseChartViewController: UIViewController, ChartViewDelegate {
             key = (dataManager.sSearchEntities[key]?.underlying_symbol)!
         }
 
-        let user = dataManager.sRtnTD[dataManager.sUser_id]
-        guard let position = user[RtnTDConstants.positions].dictionaryValue[key] else {return}
-        let volume_long = position[PositionConstants.volume_long].intValue
+        guard let user = dataManager.sRtnTD.users[dataManager.sUser_id] else {return}
+        guard let position = user.positions[key] else {return}
+        let volume_long = (position.volume_long as? Int) ?? 0
         if volume_long != 0 {
-            let limit_long =  position[PositionConstants.open_price_long].stringValue
+            let limit_long =  "\(position.open_price_long ?? 0.0)"
             let p_decs = dataManager.getDecimalByPtick(instrumentId: key)
             let limit_long_p = dataManager.saveDecimalByPtick(decimal: p_decs, data: limit_long)
-            let label_long = "\(position[PositionConstants.instrument_id].stringValue)@\(limit_long_p)/\(volume_long)手"
-            generatePositionLimitLine(limit: limit_long_p, label: label_long, color: colorBuy!, limitKey: key + "0")
+            let label_long = "\(position.instrument_id ?? "")@\(limit_long_p)/\(volume_long)手"
+            generatePositionLimitLine(limit: limit_long_p, label: label_long, color: colorBuy!, limitKey: key + "0", volume: volume_long)
         }
     }
 
@@ -200,15 +197,15 @@ class BaseChartViewController: UIViewController, ChartViewDelegate {
             key = (dataManager.sSearchEntities[key]?.underlying_symbol)!
         }
 
-        let user = dataManager.sRtnTD[dataManager.sUser_id]
-        guard let position = user[RtnTDConstants.positions].dictionaryValue[key] else {return}
-        let volume_short = position[PositionConstants.volume_short].intValue
+        guard let user = dataManager.sRtnTD.users[dataManager.sUser_id] else {return}
+        guard let position = user.positions[key] else {return}
+        let volume_short = (position.volume_short as? Int) ?? 0
         if volume_short != 0 {
-            let limit_short = position[PositionConstants.open_price_short].stringValue
+            let limit_short = "\(position.open_price_short ?? 0.0)"
             let p_decs = dataManager.getDecimalByPtick(instrumentId: key)
             let limit_short_p = dataManager.saveDecimalByPtick(decimal: p_decs, data: limit_short)
-            let label_short = "\(position[PositionConstants.instrument_id].stringValue)@\(limit_short_p)/\(volume_short)手"
-            generatePositionLimitLine(limit: limit_short_p, label: label_short, color: colorSell!, limitKey: key + "1")
+            let label_short = "\(position.instrument_id ?? "")@\(limit_short_p)/\(volume_short)手"
+            generatePositionLimitLine(limit: limit_short_p, label: label_short, color: colorSell!, limitKey: key + "1", volume: volume_short)
         }
     }
 
@@ -219,23 +216,26 @@ class BaseChartViewController: UIViewController, ChartViewDelegate {
         }
 
         let limitKey = key + "0"
-        let user = dataManager.sRtnTD[dataManager.sUser_id]
-        guard let position = user[RtnTDConstants.positions].dictionaryValue[key] else {return}
-        let volume_long = position[PositionConstants.volume_long].intValue
+        guard let user = dataManager.sRtnTD.users[dataManager.sUser_id] else {return}
+        guard let position = user.positions[key] else {return}
+        let volume_long = (position.volume_long as? Int) ?? 0
+        guard let limitLine = positionLimitLines[limitKey] else {return}
         if volume_long != 0 {
-            let limit_long = position[PositionConstants.open_price_long].stringValue
+            let limit_long = "\(position.open_price_long ?? 0.0)"
             let p_decs = dataManager.getDecimalByPtick(instrumentId: key)
             let limit_long_p = dataManager.saveDecimalByPtick(decimal: p_decs, data: limit_long)
             guard let limit_long_p_d = Double(limit_long_p) else{return}
-            let limitLine = positionLimitLines[limitKey]
-            if limitLine?.limit != limit_long_p_d {
-                let label_long = "\(position[PositionConstants.instrument_id].stringValue)@\(limit_long_p)/\(volume_long)手"
-                chartView.leftAxis.removeLimitLine(positionLimitLines[limitKey]!)
-                generatePositionLimitLine(limit: limit_long_p, label: label_long, color: colorBuy!, limitKey: limitKey)
+
+            guard let volume_long_l = positionVolumes[limitKey] else {return}
+            if limitLine.limit != limit_long_p_d || volume_long != volume_long_l {
+                let label_long = "\(position.instrument_id ?? "")@\(limit_long_p)/\(volume_long)手"
+                chartView.leftAxis.removeLimitLine(limitLine)
+                generatePositionLimitLine(limit: limit_long_p, label: label_long, color: colorBuy!, limitKey: limitKey, volume: volume_long)
             }
         } else {
-            chartView.leftAxis.removeLimitLine(positionLimitLines[limitKey]!)
+            chartView.leftAxis.removeLimitLine(limitLine)
             positionLimitLines.removeValue(forKey: limitKey)
+            positionVolumes.removeValue(forKey: limitKey)
         }
 
     }
@@ -247,23 +247,25 @@ class BaseChartViewController: UIViewController, ChartViewDelegate {
         }
 
         let limitKey = key + "1"
-        let user = dataManager.sRtnTD[dataManager.sUser_id]
-        guard let position = user[RtnTDConstants.positions].dictionaryValue[key] else {return}
-        let volume_short = position[PositionConstants.volume_short].intValue
+        guard let user = dataManager.sRtnTD.users[dataManager.sUser_id] else {return}
+        guard let position = user.positions[key] else {return}
+        let volume_short = (position.volume_short as? Int) ?? 0
+        guard let limitLine = positionLimitLines[limitKey] else {return}
         if volume_short != 0 {
-            let limit_short = position[PositionConstants.open_price_short].stringValue
+            let limit_short = "\(position.open_price_short ?? 0.0)"
             let p_decs = dataManager.getDecimalByPtick(instrumentId: key)
             let limit_short_p = dataManager.saveDecimalByPtick(decimal: p_decs, data: limit_short)
             guard let limit_short_p_d = Double(limit_short_p) else{return}
-            let limitLine = positionLimitLines[limitKey]
-            if limitLine?.limit != limit_short_p_d {
-                let label_short = "\(position[PositionConstants.instrument_id].stringValue)@\(limit_short_p)/\(volume_short)手"
-                chartView.leftAxis.removeLimitLine(positionLimitLines[limitKey]!)
-                generatePositionLimitLine(limit: limit_short_p, label: label_short, color: colorSell!, limitKey: limitKey)
+            guard let volume_short_l = positionVolumes[limitKey] else {return}
+            if limitLine.limit != limit_short_p_d || volume_short != volume_short_l{
+                let label_short = "\(position.instrument_id ?? "")@\(limit_short_p)/\(volume_short)手"
+                chartView.leftAxis.removeLimitLine(limitLine)
+                generatePositionLimitLine(limit: limit_short_p, label: label_short, color: colorSell!, limitKey: limitKey, volume: volume_short)
             }
         } else {
-            chartView.leftAxis.removeLimitLine(positionLimitLines[limitKey]!)
+            chartView.leftAxis.removeLimitLine(limitLine)
             positionLimitLines.removeValue(forKey: limitKey)
+            positionVolumes.removeValue(forKey: limitKey)
         }
     }
 
@@ -273,16 +275,17 @@ class BaseChartViewController: UIViewController, ChartViewDelegate {
             chartView.leftAxis.removeLimitLine(value)
         }
         positionLimitLines.removeAll()
+        positionVolumes.removeAll()
     }
 
     //挂单线增删操作
     func addOrderLimitLines() {
-        let user = dataManager.sRtnTD[dataManager.sUser_id]
-        let orders = user[RtnTDConstants.orders].dictionaryValue
+        guard let user = dataManager.sRtnTD.users[dataManager.sUser_id] else {return}
+        let orders = user.orders
         if orders.isEmpty{return}
         for orderEntity in orders.map({$0.value}) {
-            let instrumentId = orderEntity[OrderConstants.exchange_id].stringValue + "." + orderEntity[OrderConstants.instrument_id].stringValue
-            let status = orderEntity[OrderConstants.status].stringValue
+            let instrumentId = "\(orderEntity.exchange_id ?? "")" + "." + "\(orderEntity.instrument_id ?? "")"
+            let status = "\(orderEntity.status ?? "")"
             var ins = dataManager.sInstrumentId
             if ins.contains("KQ") {
                 ins = (dataManager.sSearchEntities[ins]?.underlying_symbol)!
@@ -300,18 +303,19 @@ class BaseChartViewController: UIViewController, ChartViewDelegate {
         }
     }
 
-    private func addOneOrderLimitLine(orderEntity: JSON) {
-        let direction = orderEntity[OrderConstants.direction].stringValue
+    private func addOneOrderLimitLine(orderEntity: Order) {
+        let direction = "\(orderEntity.direction ?? "")"
         let p_decs = dataManager.getDecimalByPtick(instrumentId: dataManager.sInstrumentId)
-        let price = dataManager.saveDecimalByPtick(decimal: p_decs, data: orderEntity[OrderConstants.limit_price].stringValue)
-        let order_id = orderEntity[OrderConstants.order_id].stringValue
-        let instrument_id = orderEntity[OrderConstants.instrument_id].stringValue
-        let volume = orderEntity[OrderConstants.volume_orign].stringValue
+        let price = dataManager.saveDecimalByPtick(decimal: p_decs, data: "\(orderEntity.limit_price ?? 0.0)")
+        let order_id = "\(orderEntity.order_id ?? "")"
+        let instrument_id = "\(orderEntity.instrument_id ?? "")"
+        let volume = (orderEntity.volume_orign as? Int) ?? 0
         let limit = Double(price)!
         let label = "\(instrument_id)@\(price)/\(volume)手"
         let chartLimitLine = ChartLimitLine(limit: limit, label: label)
         orderLimitLines[order_id] = chartLimitLine
-        chartLimitLine.lineWidth = 1.0
+        orderVolumes[order_id] = volume
+        chartLimitLine.lineWidth = 0.7
         if "BUY".elementsEqual(direction) {
             chartLimitLine.lineColor = colorBuy!
         } else {
@@ -327,6 +331,7 @@ class BaseChartViewController: UIViewController, ChartViewDelegate {
         let limitLine = orderLimitLines[key]!
         chartView.leftAxis.removeLimitLine(limitLine)
         orderLimitLines.removeValue(forKey: key)
+        orderVolumes.removeValue(forKey: key)
     }
 
     // MARK: objc methods
@@ -356,16 +361,16 @@ class BaseChartViewController: UIViewController, ChartViewDelegate {
         }
 
         if dataManager.sIsLogin && isShowOrderLine {
-            let user = dataManager.sRtnTD[dataManager.sUser_id]
-            let orders = user[RtnTDConstants.orders].dictionaryValue
-            for (orderId, orderEntity): (String, JSON) in orders{
-                let instrumentId = orderEntity[OrderConstants.exchange_id].stringValue + "." + orderEntity[OrderConstants.instrument_id].stringValue
+            guard let user = dataManager.sRtnTD.users[dataManager.sUser_id] else {return}
+            let orders = user.orders
+            for (orderId, orderEntity)in orders{
+                let instrumentId = "\(orderEntity.exchange_id ?? "")" + "." + "\(orderEntity.instrument_id ?? "")"
                 var ins = dataManager.sInstrumentId
                 if ins.contains("KQ") {
                     ins = (dataManager.sSearchEntities[ins]?.underlying_symbol)!
                 }
                 if instrumentId.elementsEqual(ins) {
-                    let status = orderEntity[OrderConstants.status].stringValue
+                    let status = "\(orderEntity.status ?? "")"
                     let limitLine = orderLimitLines[orderId]
                     if limitLine ==  nil {
                         if "ALIVE".elementsEqual(status) {
@@ -417,8 +422,10 @@ class BaseChartViewController: UIViewController, ChartViewDelegate {
 
     }
 
+    //删除所有K线图
     @objc func clearChartView(){
         xVals.removeAll()
+        removeLatestLine()
         removeOrderLimitLines()
         removePositionLimitLines()
         chartView.clear()
@@ -434,6 +441,20 @@ class BaseChartViewController: UIViewController, ChartViewDelegate {
 
     }
 
+    //相同页下切换K线周期
+    @objc func switchKlineType(_ notification: NSNotification){
+        if let dict = notification.userInfo as NSDictionary? {
+            if let index = dict["durationIndex"] as? Int, let fragmentType = dict["fragmentType"] as? String{
+                let klineType = CommonConstants.klineDuration[index]
+                if fragmentType.elementsEqual(self.fragmentType) && !self.klineType.elementsEqual(klineType){
+                    self.klineType = klineType
+                    clearChartView()
+                    sendChart()
+                }
+            }
+        }
+    }
+
     //隐藏十字光标
     @objc func Unhighlight(){
         
@@ -441,6 +462,11 @@ class BaseChartViewController: UIViewController, ChartViewDelegate {
 
     //显示十字光标
     @objc func highlight(){
-     
+
+    }
+
+    //移除最新价线
+    @objc func removeLatestLine(){
+
     }
 }

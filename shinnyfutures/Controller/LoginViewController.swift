@@ -15,36 +15,61 @@ class LoginViewController: UIViewController {
     @IBOutlet weak var login: UIButton!
     @IBOutlet weak var userName: UITextField!
     @IBOutlet weak var userPassword: UITextField!
+    @IBOutlet weak var passwordLock: UIButton!
+    @IBOutlet weak var nameLock: UIButton!
+    @IBOutlet weak var deleteName: UIButton!
+    @IBOutlet weak var deletePassword: UIButton!
+    @IBOutlet weak var nameBorder: UIView!
+    @IBOutlet weak var passwordBorder: UIView!
+
     let sDataManager = DataManager.getInstance()
+    var isLockUserName = false
+    var isLockPassword = false
     
     override func viewDidLoad() {
         super.viewDidLoad()
-        if let userName = UserDefaults.standard.string(forKey: "userName") {
+
+        let gestureRecognizer = UITapGestureRecognizer(target: self, action: #selector(toBrokerList))
+        brokerLabel.addGestureRecognizer(gestureRecognizer)
+        if let brokerInfo = UserDefaults.standard.string(forKey: CommonConstants.CONFIG_BROKER) {
+            self.brokerLabel.text = brokerInfo
+        }else if !sDataManager.sBrokers.isEmpty{
+            self.brokerLabel.text = sDataManager.sBrokers[0]
+        }
+
+        if let userName = UserDefaults.standard.string(forKey: CommonConstants.CONFIG_USER_NAME) {
             self.userName.text = userName
+            if userName.isEmpty{
+                self.deleteName.isHidden = true
+            }else{
+                self.deleteName.isHidden = false
+            }
+
         }
-        
-        if let userPassword = UserDefaults.standard.string(forKey: "userPassword") {
+
+        if let userPassword = UserDefaults.standard.string(forKey: CommonConstants.CONFIG_PASSWORD) {
             self.userPassword.text = userPassword
+            if userPassword.isEmpty{
+                self.deletePassword.isHidden = true
+            }else{
+                self.deletePassword.isHidden = false
+            }
+
         }
-        
-        //Configure the button
-        let button = DropDownBtn.init(frame: CGRect(x: 0, y: 0, width: 0, height: 0))
-        button.titleLabel?.font = UIFont.boldSystemFont(ofSize: 15)
-        button.setTitle("", for: .normal)
-        button.contentHorizontalAlignment = .left
-        button.translatesAutoresizingMaskIntoConstraints = false
-        button.tag = 100
-        
-        //Add Button to the View Controller
-        self.view.addSubview(button)
-        
-        //button Constraints, add width/height constrait to itself, add left/right/top/bottom to superVierw
-        button.superview?.addConstraint(NSLayoutConstraint.init(item: button, attribute: .left, relatedBy: .equal, toItem: userName, attribute: .left, multiplier: 1.0, constant: 0))
-        button.superview?.addConstraint(NSLayoutConstraint.init(item: button, attribute: .right, relatedBy: .equal, toItem: self.view, attribute: .right, multiplier: 1.0, constant: -20))
-        button.superview?.addConstraint(NSLayoutConstraint.init(item: button, attribute: .top, relatedBy: .equal, toItem: brokerLabel, attribute: .top, multiplier: 1.0, constant: 0))
-        button.heightAnchor.constraint(equalToConstant: 30).isActive = true
-        
-        loadBrokerInfo()
+
+        self.isLockUserName = UserDefaults.standard.bool(forKey: CommonConstants.CONFIG_LOCK_USER_NAME)
+        if self.isLockUserName{
+            nameLock.setTitle("✓", for: .normal)
+        }else{
+            nameLock.setTitle("", for: .normal)
+        }
+
+        self.isLockPassword = UserDefaults.standard.bool(forKey: CommonConstants.CONFIG_LOCK_PASSWORD)
+        if self.isLockPassword{
+            passwordLock.setTitle("✓", for: .normal)
+        }else{
+            passwordLock.setTitle("", for: .normal)
+        }
 
     }
     
@@ -60,8 +85,6 @@ class LoginViewController: UIViewController {
     }
     
     deinit {
-        let button = self.view.viewWithTag(100)
-        button?.removeFromSuperview()
         print("登陆页销毁")
     }
 
@@ -72,18 +95,16 @@ class LoginViewController: UIViewController {
     
     // MARK: Actions
     @IBAction func login(_ sender: UIButton) {
-        let button = self.view.viewWithTag(100) as! DropDownBtn
-        if button.dropView.dropDownOptions.count == 0{
-            ToastUtils.showNegativeMessage(message: "期货公司列表为空～")
-            return
-        }
-        if button.dropView.selected_index.isEmpty {
-            ToastUtils.showNegativeMessage(message: "请先选择期货公司～")
-            return
-        }
-        let broker_info = button.dropView.selected_index
+
+        let broker_info = brokerLabel.text
         let user_name = userName.text
         let password = userPassword.text
+
+        if broker_info?.count == 0 {
+            ToastUtils.showNegativeMessage(message: "期货公司为空～")
+            return
+        }
+
         if user_name?.count == 0 {
             ToastUtils.showNegativeMessage(message: "用户名为空～")
             return
@@ -92,64 +113,53 @@ class LoginViewController: UIViewController {
             ToastUtils.showNegativeMessage(message: "密码为空～")
             return
         }
-        TDWebSocketUtils.getInstance().sendReqLogin(bid: broker_info, user_name: user_name!, password: password!)
-        sDataManager.sUser_id = user_name!
-    }
-
-
-    @IBAction func back(_ sender: UIBarButtonItem) {
-        if let navigationController = self.navigationController  {
-            navigationController.popViewController(animated: true)
-        }
+        TDWebSocketUtils.getInstance().sendReqLogin(bid: broker_info!, user_name: user_name!, password: password!)
     }
 
     //Set the drop down menu's options
     @objc func loadBrokerInfo() {
-        let jsonArray = sDataManager.sRtnBrokers[RtnTDConstants.brokers].arrayValue
-        let button = self.view.viewWithTag(100) as! DropDownBtn
-        for json in jsonArray {
-            button.dropView.dropDownOptions.append(json.stringValue)
-            button.dropView.tableView?.reloadData()
-        }
-        if jsonArray.count != 0 {
-            if let brokerInfo = UserDefaults.standard.string(forKey: "brokerInfo") {
-                if button.dropView.dropDownOptions.contains(brokerInfo){
-                    button.setTitle(brokerInfo, for: .normal)
-                    button.dropView.selected_index = brokerInfo
-                }else{
-                    button.setTitle("请选择期货公司", for: .normal)
-                }
-            } else {
-                button.setTitle("请选择期货公司", for: .normal)
-            }
-        }else{
-            TDWebSocketUtils.getInstance().reconnectTD(url: CommonConstants.TRANSACTION_URL)
+        let brokerArray = sDataManager.sBrokers
+        guard let broker = self.brokerLabel.text else{return}
+        if broker.isEmpty && !brokerArray.isEmpty {
+            self.brokerLabel.text = brokerArray[0]
         }
     }
     
     // MARK: objc methods
     @objc func loginResult() {
         DispatchQueue.main.asyncAfter(deadline: .now() + 2, execute: {
-            let button = self.view.viewWithTag(100) as! DropDownBtn
             //登陆成功的提示在DataManager中的showMessage解析中弹出
             self.sDataManager.sIsLogin = true
-            UserDefaults.standard.set(self.userName.text!, forKey: "userName")
-            UserDefaults.standard.set(self.userPassword.text!, forKey: "userPassword")
-            UserDefaults.standard.set(button.dropView.selected_index, forKey: "brokerInfo")
+
+            UserDefaults.standard.set(self.brokerLabel.text!, forKey: CommonConstants.CONFIG_BROKER)
+            if self.isLockUserName {
+                UserDefaults.standard.set(self.userName.text!, forKey: CommonConstants.CONFIG_USER_NAME)
+            }else{
+                UserDefaults.standard.set("", forKey: CommonConstants.CONFIG_USER_NAME)
+            }
+
+            if self.isLockPassword {
+                UserDefaults.standard.set(self.userPassword.text!, forKey: CommonConstants.CONFIG_PASSWORD)
+            }else{
+                UserDefaults.standard.set("", forKey: CommonConstants.CONFIG_PASSWORD)
+            }
+
             //手动式segue，代码触发；自动式指通过点击某个按钮出发
             switch self.sDataManager.sToLoginTarget {
+            case "Login":
+                self.performSegue(withIdentifier: CommonConstants.LoginToMain, sender: self.login)
             case "Account":
                 self.performSegue(withIdentifier: CommonConstants.LoginToAccount, sender: self.login)
             case "Position":
                 self.performSegue(withIdentifier: CommonConstants.LoginToQuote, sender: self.login)
                 let instrumentId = self.sDataManager.sQuotes[1].map {$0.key}[0]
                 self.sDataManager.sInstrumentId = instrumentId
-                self.sDataManager.sPreInsList = self.sDataManager.sRtnMD[RtnMDConstants.ins_list].stringValue
-                MDWebSocketUtils.getInstance().sendSubscribeQuote(insList: instrumentId)
-                MDWebSocketUtils.getInstance().sendSetChart(insList: instrumentId)
-                MDWebSocketUtils.getInstance().sendSetChartDay(insList: instrumentId, viewWidth: CommonConstants.VIEW_WIDTH)
-                MDWebSocketUtils.getInstance().sendSetChartHour(insList: instrumentId, viewWidth: CommonConstants.VIEW_WIDTH)
-                MDWebSocketUtils.getInstance().sendSetChartMinute(insList: instrumentId, viewWidth: CommonConstants.VIEW_WIDTH)
+                self.sDataManager.sPreInsList = self.sDataManager.sRtnMD.ins_list
+                //                MDWebSocketUtils.getInstance().sendSubscribeQuote(insList: instrumentId)
+                //                MDWebSocketUtils.getInstance().sendSetChart(insList: instrumentId)
+                //                MDWebSocketUtils.getInstance().sendSetChartDay(insList: instrumentId, viewWidth: CommonConstants.VIEW_WIDTH)
+                //                MDWebSocketUtils.getInstance().sendSetChartHour(insList: instrumentId, viewWidth: CommonConstants.VIEW_WIDTH)
+            //                MDWebSocketUtils.getInstance().sendSetChartMinute(insList: instrumentId, viewWidth: CommonConstants.VIEW_WIDTH)
             case "Trade":
                 self.performSegue(withIdentifier: CommonConstants.LoginToTrade, sender: self.login)
             case "BankTransfer":
@@ -178,12 +188,89 @@ class LoginViewController: UIViewController {
             
         })
     }
-    @IBAction func userNameDone(_ sender: UITextField) {
-        userName.resignFirstResponder()
+
+    @objc func toBrokerList(){
+        self.performSegue(withIdentifier: CommonConstants.LoginToBroker, sender: self.brokerLabel)
     }
 
+    @IBAction func brokerViewControllerUnwindSegue(segue: UIStoryboardSegue) {
+        if let sourceViewController = segue.source as? BrokerTableViewController {
+            let broker = sourceViewController.dataRetrurn
+            if !broker.isEmpty{
+                self.brokerLabel.text = broker
+            }
+        }
+        print("我从期货公司列表页来～")
+    }
+
+    @IBAction func userNameChange(_ sender: UITextField) {
+        if sender.text?.count == 0{
+            self.deleteName.isHidden = true
+        }else{
+            self.deleteName.isHidden = false
+        }
+    }
+
+    @IBAction func userNameBegin(_ sender: UITextField) {
+        self.nameBorder.layer.borderColor = CommonConstants.LOGIN_COLOR
+    }
+
+
+    @IBAction func userNameDone(_ sender: UITextField) {
+        self.userName.resignFirstResponder()
+        self.nameBorder.layer.borderColor = UIColor.lightGray.cgColor
+    }
+
+    @IBAction func deleteUserName(_ sender: UIButton) {
+        self.userName.text = ""
+        self.deleteName.isHidden = true
+    }
+
+    @IBAction func passwordChange(_ sender: UITextField) {
+        if sender.text?.count == 0{
+            self.deletePassword.isHidden = true
+        }else{
+            self.deletePassword.isHidden = false
+        }
+    }
+
+    @IBAction func passwordBegin(_ sender: UITextField) {
+        self.passwordBorder.layer.borderColor = CommonConstants.LOGIN_COLOR
+    }
+
+
     @IBAction func passwordDone(_ sender: UITextField) {
-        userPassword.resignFirstResponder()
+        self.userPassword.resignFirstResponder()
+        self.passwordBorder.layer.borderColor = UIColor.lightGray.cgColor
+    }
+
+    @IBAction func deletePassword(_ sender: UIButton) {
+        self.userPassword.text = ""
+        self.deletePassword.isHidden = true
+    }
+
+    @IBAction func lockOrUnlockPassword(_ sender: UIButton) {
+        if self.isLockPassword{
+            passwordLock.setTitle("", for: .normal)
+            self.isLockPassword = false
+            UserDefaults.standard.set(false, forKey: CommonConstants.CONFIG_LOCK_PASSWORD)
+        }else{
+            passwordLock.setTitle("✓", for: .normal)
+            self.isLockPassword = true
+            UserDefaults.standard.set(true, forKey: CommonConstants.CONFIG_LOCK_PASSWORD)
+        }
+    }
+
+    @IBAction func lockOrUnlockName(_ sender: UIButton) {
+        if self.isLockUserName{
+            nameLock.setTitle("", for: .normal)
+            self.isLockUserName = false
+            UserDefaults.standard.set(false, forKey: CommonConstants.CONFIG_LOCK_USER_NAME)
+        }else{
+            nameLock.setTitle("✓", for: .normal)
+            self.isLockUserName = true
+            UserDefaults.standard.set(true, forKey: CommonConstants.CONFIG_LOCK_USER_NAME)
+        }
     }
 }
 

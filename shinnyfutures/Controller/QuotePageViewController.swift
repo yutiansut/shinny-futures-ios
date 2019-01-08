@@ -26,7 +26,7 @@ class QuotePageViewController: UIPageViewController, UIPageViewControllerDataSou
     }
 
     override func viewDidAppear(_ animated: Bool) {
-        mainViewController = self.parent as! MainViewController
+        mainViewController = self.parent as? MainViewController
     }
 
     deinit {
@@ -58,7 +58,7 @@ class QuotePageViewController: UIPageViewController, UIPageViewControllerDataSou
             if let contentViewController = pageViewController.viewControllers?.first as? QuoteTableViewController {
                 let index = contentViewController.index
                 currentIndex = index
-                mainViewController.title = CommonConstants.titleArray[index]
+                mainViewController.button.setTitle(CommonConstants.titleArray[index], for: .normal)
                 mainViewController.loadQuoteNavigation(index: index)
                 contentViewController.sendSubscribeQuotes()
             }

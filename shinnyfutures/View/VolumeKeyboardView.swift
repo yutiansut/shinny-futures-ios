@@ -74,9 +74,9 @@ open class VolumeKeyboardView: UIView {
         priceTick.text = dataManager.sSearchEntities[instrument_id]?.p_tick
 
         let decimal = dataManager.getDecimalByPtick(instrumentId: instrument_id)
-        let quote = dataManager.sRtnMD[RtnMDConstants.quotes][instrument_id]
-        let upper = quote[QuoteConstants.upper_limit].stringValue
-        let lower = quote[QuoteConstants.lower_limit].stringValue
+        guard let quote = dataManager.sRtnMD.quotes[instrument_id] else {return}
+        let upper = "\(quote.upper_limit ?? 0.0)"
+        let lower = "\(quote.lower_limit ?? 0.0)"
         upperLimit.text = dataManager.saveDecimalByPtick(decimal: decimal, data: upper)
         lowerLimit.text = dataManager.saveDecimalByPtick(decimal: decimal, data: lower)
     }
@@ -92,11 +92,17 @@ open class VolumeKeyboardView: UIView {
         if margin == 0{
             openVolume.text = "0"
         }else {
-            let user = dataManager.sRtnTD[dataManager.sUser_id]
-            for (_, account) in user[RtnTDConstants.accounts].dictionaryValue {
-                let available = account[AccountConstants.available].intValue
+            guard let user = dataManager.sRtnTD.users[dataManager.sUser_id] else {return}
+            for (_, account) in user.accounts {
+                let available = Int("\(account.available ?? 0)") ?? 0
                 openVolume.text = "\(available / margin)"
             }
+        }
+    }
+
+    func setVolume(volume: String?) {
+        if let volume = volume {
+            processor.currentOperand = volume
         }
     }
 
@@ -148,7 +154,7 @@ class VolumeKeyboardViewProcessor {
         var output = 0
         switch tag {
         case VolumeKey.subtract.rawValue:
-            if output >= 1{
+            if value >= 1{
                 output = value - 1
             }
         case VolumeKey.add.rawValue:
@@ -176,7 +182,7 @@ class VolumeKeyboardViewProcessor {
     }
 
     fileprivate func resetOperand() -> String {
-        let operand = "1"
+        let operand = ""
         return operand
     }
 

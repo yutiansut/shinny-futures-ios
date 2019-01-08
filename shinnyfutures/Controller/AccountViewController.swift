@@ -11,6 +11,7 @@ import UIKit
 class AccountViewController: UIViewController {
 
     // MARK: Properties
+    @IBOutlet weak var user: UILabel!
     @IBOutlet weak var date: UILabel!
     @IBOutlet weak var static_balance: UILabel!
     @IBOutlet weak var close_profit: UILabel!
@@ -49,41 +50,35 @@ class AccountViewController: UIViewController {
 
     // MARK: objc methods
     @objc func loadData() {
-        let user = dataManager.sRtnTD[dataManager.sUser_id]
-        let acounts = user[RtnTDConstants.accounts].dictionaryValue
-        for (_, account) in acounts {
-            let static_balance = account[AccountConstants.static_balance].doubleValue
-            let close_profit = account[AccountConstants.close_profit].doubleValue
-            let position_profit = account[AccountConstants.position_profit].doubleValue
-            let commission = account[AccountConstants.commission].doubleValue
-            let balance = account[AccountConstants.balance].doubleValue
-            let margin = account[AccountConstants.margin].doubleValue
-            let margin_frozen = account[AccountConstants.frozen_margin].doubleValue
-            let commission_frozen = account[AccountConstants.frozen_commission].doubleValue
-            let premium_frozen = account[AccountConstants.frozen_premium].doubleValue
-            let available = account[AccountConstants.available].doubleValue
-            let deposit = account[AccountConstants.deposit].doubleValue
-            let withdraw = account[AccountConstants.withdraw].doubleValue
+        guard let user = dataManager.sRtnTD.users[dataManager.sUser_id] else {return}
+        for (_, account) in  user.accounts {
+            let static_balance = "\(account.static_balance ?? 0.0)"
+            let close_profit = "\(account.close_profit ?? 0.0)"
+            let position_profit = "\(account.position_profit ?? 0.0)"
+            let commission = "\(account.commission ?? 0.0)"
+            let balance = "\(account.balance ?? 0.0)"
+            let margin = "\(account.margin ?? 0.0)"
+            let margin_frozen = "\(account.frozen_margin ?? 0.0)"
+            let commission_frozen = "\(account.frozen_commission ?? 0.0)"
+            let premium_frozen = "\(account.frozen_premium ?? 0.0)"
+            let available = "\(account.available ?? 0.0)"
+            let deposit = "\(account.deposit ?? 0.0)"
+            let withdraw = "\(account.withdraw ?? 0.0)"
 
-            self.static_balance.text = String(format: "%.2f", static_balance)
-            self.close_profit.text = String(format: "%.2f", close_profit)
-            self.position_profit.text = String(format: "%.2f", position_profit)
-            self.commission.text = String(format: "%.2f", commission)
-            self.balance.text = String(format: "%.2f", balance)
-            self.margin.text = String(format: "%.2f", margin)
-            self.margin_frozen.text = String(format: "%.2f", margin_frozen)
-            self.commission_frozen.text = String(format: "%.2f", commission_frozen)
-            self.premium_frozen.text = String(format: "%.2f", premium_frozen)
-            self.available.text = String(format: "%.2f", available)
-            self.deposit.text = String(format: "%.2f", deposit)
-            self.withdraw.text = String(format: "%.2f", withdraw)
+            self.user.text = dataManager.sUser_id
+            self.static_balance.text = dataManager.saveDecimalByPtick(decimal: 2, data: static_balance)
+            self.close_profit.text = dataManager.saveDecimalByPtick(decimal: 2, data: close_profit)
+            self.position_profit.text = dataManager.saveDecimalByPtick(decimal: 2, data: position_profit)
+            self.commission.text = dataManager.saveDecimalByPtick(decimal: 2, data: commission)
+            self.balance.text = dataManager.saveDecimalByPtick(decimal: 2, data: balance)
+            self.margin.text = dataManager.saveDecimalByPtick(decimal: 2, data: margin)
+            self.margin_frozen.text = dataManager.saveDecimalByPtick(decimal: 2, data: margin_frozen)
+            self.commission_frozen.text = dataManager.saveDecimalByPtick(decimal: 2, data: commission_frozen)
+            self.premium_frozen.text = dataManager.saveDecimalByPtick(decimal: 2, data: premium_frozen)
+            self.available.text = dataManager.saveDecimalByPtick(decimal: 2, data: available)
+            self.deposit.text = dataManager.saveDecimalByPtick(decimal: 2, data: deposit)
+            self.withdraw.text = dataManager.saveDecimalByPtick(decimal: 2, data: withdraw)
         }
 
     }
-
-
-    @IBAction func logout(_ sender: UIButton) {
-        dataManager.clearAccount()
-    }
-
 }

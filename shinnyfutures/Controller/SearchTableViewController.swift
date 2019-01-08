@@ -18,10 +18,17 @@ class SearchTableViewController: UITableViewController, UISearchResultsUpdating 
 
     override func viewDidLoad() {
         super.viewDidLoad()
-
         searchController = UISearchController(searchResultsController: nil)
         searchController.searchBar.placeholder = "合约代码\\拼音\\中文\\交易所"
-        tableView.tableHeaderView = searchController?.searchBar
+        searchController.searchBar.barStyle = .black
+
+        if #available(iOS 11.0, *) {
+            navigationItem.searchController = searchController
+            navigationItem.hidesSearchBarWhenScrolling = false
+        } else {
+            tableView.tableHeaderView = searchController.searchBar
+        }
+
         searchController.searchResultsUpdater = self
         searchController.dimsBackgroundDuringPresentation = false
 
@@ -59,17 +66,21 @@ class SearchTableViewController: UITableViewController, UISearchResultsUpdating 
             fatalError("The dequeued cell is not an instance of TradeTableViewCell.")
         }
 
-        //全屏分割线
-        cell.preservesSuperviewLayoutMargins = false
-        cell.separatorInset = UIEdgeInsets.zero
-        cell.layoutMargins = UIEdgeInsets.zero
-
         // Fetches the appropriate quote for the data source layout.
         let quote = (searchController.isActive) ? searchResults[indexPath.row] : searchHistory[indexPath.row]
 
         cell.instrumentName.text = quote.instrument_name
-        cell.instrumentId.text = quote.instrument_id
+        cell.instrumentId.text = "(" + "\(quote.instrument_id ?? "")" + ")"
         cell.exchangeName.text = quote.exchange_name
+
+        let optional = FileUtils.getOptional()
+        if let ins = quote.instrument_id {
+            if !optional.contains(ins) {
+                cell.save.setImage(UIImage(named: "heart_outline", in: Bundle(identifier: "com.shinnytech.futures"), compatibleWith: nil), for: .normal)
+            }else{
+                cell.save.setImage(UIImage(named: "heart", in: Bundle(identifier: "com.shinnytech.futures"), compatibleWith: nil), for: .normal)
+            }
+        }
 
         return cell
     }
@@ -87,16 +98,17 @@ class SearchTableViewController: UITableViewController, UISearchResultsUpdating 
     override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
         if let indexPath = tableView.indexPathForSelectedRow {
             if searchController.isActive {
-                let instrumentId = searchResults[indexPath.row].instrument_id
+                let instrumentId = searchResults[indexPath.row].instrument_id!
                 dataManager.sInstrumentId = instrumentId
                 if !dataManager.sSearchHistoryEntities.contains(where: {$0.key.elementsEqual(instrumentId)}) {
                     dataManager.sSearchHistoryEntities[instrumentId] = dataManager.sSearchEntities[instrumentId]
                 }
                 searchController.isActive = false
             } else {
-                dataManager.sInstrumentId = searchHistory[indexPath.row].instrument_id
+                dataManager.sInstrumentId = searchHistory[indexPath.row].instrument_id!
             }
-            DataManager.getInstance().sPreInsList = DataManager.getInstance().sRtnMD[RtnMDConstants.ins_list].stringValue
+            DataManager.getInstance().sToQuoteTarget = ""
+            DataManager.getInstance().sPreInsList = DataManager.getInstance().sRtnMD.ins_list
         }
     }
 
@@ -110,32 +122,32 @@ class SearchTableViewController: UITableViewController, UISearchResultsUpdating 
     // MARK: Private Methods
     private func loadData() {
         searchHistory = dataManager.sSearchHistoryEntities.sorted(by: {
-            if let sortKey0 = (dataManager.sSearchEntities[$0.key]?.sort_key), let sortKey1 = (dataManager.sSearchEntities[$1.key]?.sort_key){
-                if sortKey0 != sortKey1{
-                    return sortKey0 < sortKey1
+            if let pre_volume0 = (dataManager.sSearchEntities[$0.key]?.pre_volume), let pre_volume1 = (dataManager.sSearchEntities[$1.key]?.pre_volume){
+                if pre_volume0 != pre_volume1{
+                    return pre_volume0 > pre_volume1
                 }else{
-                    return $0.key < $1.key
+                    return $0.key > $1.key
                 }
             }
-            return $0.key < $1.key
+            return $0.key > $1.key
 
         }).map {$0.value}
     }
 
     func filterContent(for searchText: String) {
         searchResults = dataManager.sSearchEntities.filter({ (_, search) -> Bool in
-            let isMatch = search.instrument_id.localizedCaseInsensitiveContains(searchText) || search.instrument_name.localizedCaseInsensitiveContains(searchText) ||
-                search.py.localizedCaseInsensitiveContains(searchText)
+            let isMatch = search.instrument_id!.localizedCaseInsensitiveContains(searchText) || search.instrument_name!.localizedCaseInsensitiveContains(searchText) ||
+                search.py!.localizedCaseInsensitiveContains(searchText)
             return isMatch
         }).sorted(by: {
-            if let sortKey0 = (dataManager.sSearchEntities[$0.key]?.sort_key), let sortKey1 = (dataManager.sSearchEntities[$1.key]?.sort_key){
-                if sortKey0 != sortKey1{
-                    return sortKey0 < sortKey1
+            if let pre_volume0 = (dataManager.sSearchEntities[$0.key]?.pre_volume), let pre_volume1 = (dataManager.sSearchEntities[$1.key]?.pre_volume){
+                if pre_volume0 != pre_volume1{
+                    return pre_volume0 > pre_volume1
                 }else{
-                    return $0.key < $1.key
+                    return $0.key > $1.key
                 }
             }
-            return $0.key < $1.key
+            return $0.key > $1.key
 
         }).map {$0.value}
     }
