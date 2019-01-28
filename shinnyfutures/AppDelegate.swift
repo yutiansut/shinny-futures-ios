@@ -40,7 +40,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // Override point for customization after application launch.
         Siren.shared.checkVersion(checkType: .immediately)
         if let statusBarView = UIApplication.shared.value(forKeyPath: "statusBarWindow.statusBar") as? UIView {
-            statusBarView.backgroundColor = CommonConstants.QUOTE_PAGE_HEADER
+            statusBarView.backgroundColor = UIColor.black
         }
 
         self.createMenuView()
