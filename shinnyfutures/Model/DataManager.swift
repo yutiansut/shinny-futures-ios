@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import AliyunLOGiOS
 
 class DataManager {
     private static let instance: DataManager = {
@@ -46,8 +47,15 @@ class DataManager {
     //十字光标浮动窗口y值
     var yData = ""
     //行情服务器地址及编号
-    var mdURLs = [String]()
-    var index = 0
+    var sMdURLs = [String]()
+    var sIndex = 0
+    //用户最后一次发送的订阅请求
+    var sQuotesText = ""
+    var sChartsText = ""
+    //ali log
+    var ak = ""
+    var sk = ""
+    var sClient: LOGClient?
 
     func parseLatestFile(latestData: Data) {
         NSLog("解析开始")
@@ -613,6 +621,7 @@ class DataManager {
     }
 
     func parseBrokers(rtnData: [String: Any]) {
+        print(rtnData)
         if !rtnData.keys.contains(RtnTDConstants.brokers) {
             sIsLogin = false
             sIsEmpty = true
@@ -654,6 +663,17 @@ class DataManager {
             guard let value = value as? [String: Any] else {continue}
             let content = "\(value[NotifyConstants.content] ?? "")"
             let type = "\(value[NotifyConstants.type] ?? "")"
+            let code = "\(value[NotifyConstants.code] ?? "")"
+            if content.elementsEqual("修改密码成功"){
+                DispatchQueue.main.async {
+                    NotificationCenter.default.post(name: Notification.Name(CommonConstants.ChangeSuccessNotification), object: nil)
+                }
+            }
+            if "140".elementsEqual(code) || "131".elementsEqual(code){
+                DispatchQueue.main.async {
+                    NotificationCenter.default.post(name: Notification.Name(CommonConstants.WeakPasswordNotification), object: nil)
+                }
+            }
             if "SETTLEMENT".elementsEqual(type){
                 DispatchQueue.main.async {
                     ConfirmSettlementView.getInstance().showConfirmSettlement(message: content)
@@ -708,6 +728,7 @@ class DataManager {
                     guard let session = value as? [String: Any] else {break}
                     guard let user_id = session["user_id"] as? String else {break}
                     sUser_id = user_id
+                    sIsLogin = true
                     break
                 default:
                     break
@@ -833,5 +854,14 @@ class DataManager {
             }
             user_local?.trades[key] = trade_local
         }
+    }
+
+    func insertRecordsToDB(log: String) {
+        let date = Date()
+        let dformatter = DateFormatter()
+        dformatter.dateFormat = "yyyy年MM月dd日 HH:mm:ss"
+        let time = dformatter.string(from: date)
+        let dm = DBManager.defaultManager()
+        dm.insertRecords(endpoint: "http://cn-shanghai.log.aliyuncs.com", project: "kq-xq", logstore: "kq-xq", log: log + "\ntimeStamp: " + time, timestamp: Date().timeIntervalSince1970)
     }
 }

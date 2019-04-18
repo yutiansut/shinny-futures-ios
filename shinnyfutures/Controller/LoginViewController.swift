@@ -24,8 +24,6 @@ class LoginViewController: UIViewController {
     @IBOutlet weak var passwordBorder: UIView!
 
     let sDataManager = DataManager.getInstance()
-    var isLockUserName = false
-    var isLockPassword = false
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -40,9 +38,31 @@ class LoginViewController: UIViewController {
             self.brokerLabel.text = sDataManager.sBrokers[0]
         }
 
+        var isLockUserName = false
+        var isLockPassword = false
+
+        isLockUserName = UserDefaults.standard.bool(forKey: CommonConstants.CONFIG_LOCK_USER_NAME)
+        if isLockUserName{
+            nameLock.setTitle("✓", for: .normal)
+        }else{
+            nameLock.setTitle("", for: .normal)
+        }
+
+        isLockPassword = UserDefaults.standard.bool(forKey: CommonConstants.CONFIG_LOCK_PASSWORD)
+        if isLockPassword{
+            passwordLock.setTitle("✓", for: .normal)
+        }else{
+            passwordLock.setTitle("", for: .normal)
+        }
+
         if let userName = UserDefaults.standard.string(forKey: CommonConstants.CONFIG_USER_NAME) {
-            self.userName.text = userName
-            if userName.isEmpty{
+            if isLockUserName {
+                self.userName.text = userName
+            }else{
+                self.userName.text = ""
+            }
+
+            if self.userName.text!.isEmpty{
                 self.deleteName.isHidden = true
             }else{
                 self.deleteName.isHidden = false
@@ -51,27 +71,18 @@ class LoginViewController: UIViewController {
         }
 
         if let userPassword = UserDefaults.standard.string(forKey: CommonConstants.CONFIG_PASSWORD) {
-            self.userPassword.text = userPassword
-            if userPassword.isEmpty{
+            if isLockPassword {
+                self.userPassword.text = userPassword
+            }else {
+                self.userPassword.text = ""
+            }
+
+            if self.userPassword.text!.isEmpty{
                 self.deletePassword.isHidden = true
             }else{
                 self.deletePassword.isHidden = false
             }
 
-        }
-
-        self.isLockUserName = UserDefaults.standard.bool(forKey: CommonConstants.CONFIG_LOCK_USER_NAME)
-        if self.isLockUserName{
-            nameLock.setTitle("✓", for: .normal)
-        }else{
-            nameLock.setTitle("", for: .normal)
-        }
-
-        self.isLockPassword = UserDefaults.standard.bool(forKey: CommonConstants.CONFIG_LOCK_PASSWORD)
-        if self.isLockPassword{
-            passwordLock.setTitle("✓", for: .normal)
-        }else{
-            passwordLock.setTitle("", for: .normal)
         }
 
     }
@@ -80,6 +91,8 @@ class LoginViewController: UIViewController {
         NotificationCenter.default.addObserver(self, selector: #selector(loadBrokerInfo), name: Notification.Name(CommonConstants.BrokerInfoNotification), object: nil)
         
         NotificationCenter.default.addObserver(self, selector: #selector(loginResult), name: Notification.Name(CommonConstants.LoginNotification), object: nil)
+
+        NotificationCenter.default.addObserver(self, selector: #selector(changePassword), name: Notification.Name(CommonConstants.WeakPasswordNotification), object: nil)
 
     }
     
@@ -132,20 +145,13 @@ class LoginViewController: UIViewController {
     @objc func loginResult() {
         DispatchQueue.main.asyncAfter(deadline: .now() + 2, execute: {
             //登陆成功的提示在DataManager中的showMessage解析中弹出
-            self.sDataManager.sIsLogin = true
-
+            let dateFormat = DateFormatter()
+            dateFormat.dateFormat = "yyyy年MM日dd日"
+            let date = dateFormat.string(from: Date())
+            UserDefaults.standard.set(date, forKey: CommonConstants.CONFIG_LOGIN_DATE)
             UserDefaults.standard.set(self.brokerLabel.text!, forKey: CommonConstants.CONFIG_BROKER)
-            if self.isLockUserName {
-                UserDefaults.standard.set(self.userName.text!, forKey: CommonConstants.CONFIG_USER_NAME)
-            }else{
-                UserDefaults.standard.set("", forKey: CommonConstants.CONFIG_USER_NAME)
-            }
-
-            if self.isLockPassword {
-                UserDefaults.standard.set(self.userPassword.text!, forKey: CommonConstants.CONFIG_PASSWORD)
-            }else{
-                UserDefaults.standard.set("", forKey: CommonConstants.CONFIG_PASSWORD)
-            }
+            UserDefaults.standard.set(self.userName.text!, forKey: CommonConstants.CONFIG_USER_NAME)
+            UserDefaults.standard.set(self.userPassword.text!, forKey: CommonConstants.CONFIG_PASSWORD)
 
             //手动式segue，代码触发；自动式指通过点击某个按钮出发
             switch self.sDataManager.sToLoginTarget {
@@ -185,6 +191,12 @@ class LoginViewController: UIViewController {
             }
             
         })
+    }
+
+    //弱密码修改
+    @objc func changePassword(){
+        self.userPassword.text = ""
+        self.performSegue(withIdentifier: CommonConstants.LoginToChangePassword, sender: self.login)
     }
 
     @objc func toBrokerList(){
@@ -248,25 +260,23 @@ class LoginViewController: UIViewController {
     }
 
     @IBAction func lockOrUnlockPassword(_ sender: UIButton) {
-        if self.isLockPassword{
+        guard let title = passwordLock.title(for: .normal)else {return}
+        if !title.isEmpty{
             passwordLock.setTitle("", for: .normal)
-            self.isLockPassword = false
             UserDefaults.standard.set(false, forKey: CommonConstants.CONFIG_LOCK_PASSWORD)
         }else{
             passwordLock.setTitle("✓", for: .normal)
-            self.isLockPassword = true
             UserDefaults.standard.set(true, forKey: CommonConstants.CONFIG_LOCK_PASSWORD)
         }
     }
 
     @IBAction func lockOrUnlockName(_ sender: UIButton) {
-        if self.isLockUserName{
+        guard let title = nameLock.title(for: .normal)else {return}
+        if !title.isEmpty{
             nameLock.setTitle("", for: .normal)
-            self.isLockUserName = false
             UserDefaults.standard.set(false, forKey: CommonConstants.CONFIG_LOCK_USER_NAME)
         }else{
             nameLock.setTitle("✓", for: .normal)
-            self.isLockUserName = true
             UserDefaults.standard.set(true, forKey: CommonConstants.CONFIG_LOCK_USER_NAME)
         }
     }
