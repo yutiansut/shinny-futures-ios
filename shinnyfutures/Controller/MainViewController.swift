@@ -7,26 +7,10 @@
 //
 
 import UIKit
-import SwiftyJSON
+import AliyunLOGiOS
 
-class MainViewController: UIViewController, MDWebSocketUtilsDelegate, TDWebSocketUtilsDelegate {
+class MainViewController: UIViewController, MDWebSocketUtilsDelegate, TDWebSocketUtilsDelegate, UIPopoverPresentationControllerDelegate, SlideMenuControllerDelegate {
     // MARK: Properties
-    @IBOutlet weak var slideMenuConstraint: NSLayoutConstraint!
-    @IBOutlet weak var menu: UIStackView!
-    @IBOutlet weak var optional: UIButton!
-    @IBOutlet weak var domain: UIButton!
-    @IBOutlet weak var shanghai: UIButton!
-    @IBOutlet weak var nengyuan: UIButton!
-    @IBOutlet weak var dalian: UIButton!
-    @IBOutlet weak var zhengzhou: UIButton!
-    @IBOutlet weak var zhongjin: UIButton!
-    @IBOutlet weak var dalianzuhe: UIButton!
-    @IBOutlet weak var zhengzhouzuhe: UIButton!
-    @IBOutlet weak var account: UIButton!
-    @IBOutlet weak var position: UIButton!
-    @IBOutlet weak var trade: UIButton!
-    @IBOutlet weak var feedback: UIButton!
-    @IBOutlet weak var background: UIButton!
     @IBOutlet weak var left: UIButton!
     @IBOutlet weak var right: UIButton!
     @IBOutlet weak var quoteNavgationView: UIView!
@@ -34,152 +18,316 @@ class MainViewController: UIViewController, MDWebSocketUtilsDelegate, TDWebSocke
     var isSlideMenuHidden = true
     var quotePageViewController: QuotePageViewController!
     var quoteNavigationCollectionViewController: QuoteNavigationCollectionViewController!
-
     let mdWebSocketUtils = MDWebSocketUtils.getInstance()
-    let transactionWebSocketUtils = TDWebSocketUtils.getInstance()
-    var isMDClose = false
-    var isTDClose = false
-    var mdURLs = [String]()
-    var tdUrl = CommonConstants.TRANSACTION_URL + "0"
-    var index = 0
-
-    func websocketDidConnect(socket: TDWebSocketUtils) {
-        NSLog("交易服务器连接成功～")
-        if isTDClose {
-            ToastUtils.showPositiveMessage(message: "交易服务器连接成功～")
-            isTDClose = false
-        }
-    }
-
-    func websocketDidDisconnect(socket: TDWebSocketUtils, error: Error?) {
-        NSLog("交易服务器连接断开，正在重连～")
-        DataManager.getInstance().sIsLogin = false
-        isTDClose = true
-        ToastUtils.showNegativeMessage(message: "交易服务器连接断开，正在重连～")
-        DispatchQueue.global().asyncAfter(deadline: DispatchTime.now() + 2, execute: {
-            self.transactionWebSocketUtils.connect(url: self.tdUrl)
-        })
-    }
+    let tdWebSocketUtils = TDWebSocketUtils.getInstance()
+    var lastMDTime = CACurrentMediaTime()
+    var lastTDTime = CACurrentMediaTime()
+    let button =  UIButton(type: .custom)
+    let dataManager = DataManager.getInstance()
 
     func websocketDidReceiveMessage(socket: TDWebSocketUtils, text: String) {
         DispatchQueue.global().async {
-            let json = JSON(parseJSON: text)
-            let aid = json["aid"].stringValue
-            switch aid {
-            case "rtn_brokers":
-                DataManager.getInstance().parseBrokers(brokers: json)
-            case "rtn_data":
-                DataManager.getInstance().parseRtnTD(transactionData: json)
-            default:
-                return
+            guard let data = text.data(using: .utf8) else {return}
+            do{
+                guard let json = try JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] else {return}
+                let aid = json[RtnTDConstants.aid] as? String
+                switch aid {
+                case "rtn_brokers":
+                    self.tdWebSocketUtils.ping()
+                    self.dataManager.parseBrokers(rtnData: json)
+                    self.loginConfig(socket: socket)
+                case "rtn_data":
+                    self.dataManager.parseRtnTD(rtnData: json)
+                default:
+                    self.tdWebSocketUtils.reconnectTD(url: CommonConstants.TRANSACTION_URL)
+                    return
+                }
+
+                socket.sendPeekMessage()
+
+            }catch{
+                print(error.localizedDescription)
             }
-            self.transactionWebSocketUtils.sendPeekMessage()
         }
     }
 
-    func websocketDidReceiveData(socket: TDWebSocketUtils, data: Data) {
-        NSLog("交易服务器接收二进制数据")
+    func websocketDidReceivePong(socket: TDWebSocketUtils, data: Data?) {
+        self.lastTDTime = CACurrentMediaTime()
+        NSLog("TDPong")
+    }
+
+    //登录设置，自动登录
+    func loginConfig(socket: TDWebSocketUtils) {
+        if UserDefaults.standard.object(forKey: CommonConstants.CONFIG_LOGIN_DATE) != nil {
+            guard let loginDate = UserDefaults.standard.string(forKey: CommonConstants.CONFIG_LOGIN_DATE) else {return}
+            let dateFormat = DateFormatter()
+            dateFormat.dateFormat = "yyyy年MM日dd日"
+            let date = dateFormat.string(from: Date())
+            if date.elementsEqual(loginDate){
+                guard let name = UserDefaults.standard.string(forKey: CommonConstants.CONFIG_USER_NAME) else {return}
+                guard let password = UserDefaults.standard.string(forKey: CommonConstants.CONFIG_PASSWORD) else {return}
+                guard let broker = UserDefaults.standard.string(forKey: CommonConstants.CONFIG_BROKER) else {return}
+                socket.sendReqLogin(bid: broker, user_name: name, password: password)
+            }
+        }
     }
 
     ////////////////////////////////////////////////////////////////////////////////
-
-    func websocketDidConnect(socket: MDWebSocketUtils) {
-        NSLog("行情服务器连接成功～")
-        if isMDClose {
-            ToastUtils.showPositiveMessage(message: "行情服务器连接成功～")
-            isMDClose = false
-        }
-    }
-
-    func websocketDidDisconnect(socket: MDWebSocketUtils, error: Error?) {
-        NSLog("行情服务器连接断开，正在重连～")
-        isMDClose = true
-        ToastUtils.showNegativeMessage(message: "行情服务器连接断开，正在重连～")
-        DispatchQueue.global().asyncAfter(deadline: DispatchTime.now() + 2, execute: {
-            self.index = self.mdWebSocketUtils.connect(url: self.mdURLs[self.index], index: self.index)
-        })
-    }
-
-    func websocketDidReceiveData(socket: MDWebSocketUtils, data: Data) {
-        NSLog("行情服务器接受二进制数据")
-    }
 
     func websocketDidReceiveMessage(socket: MDWebSocketUtils, text: String) {
         DispatchQueue.global().async {
-            let json = JSON(parseJSON: text)
-            let aid = json["aid"].stringValue
-            switch aid {
-            case "rsp_login":
-                if DataManager.getInstance().sQuotes.count != 0{
-                    socket.sendSubscribeQuote(insList: DataManager.getInstance().sQuotes[1].map {$0.key}[0..<CommonConstants.MAX_SUBSCRIBE_QUOTES].joined(separator: ","))
+            guard let data = text.data(using: .utf8) else {return}
+            do{
+                guard let json = try JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] else {return}
+                let aid = json[RtnMDConstants.aid] as? String
+                switch aid {
+                case "rsp_login":
+                    self.mdWebSocketUtils.ping()
+                    self.sendSubscribeAfterConnect(socket: socket)
+                case "rtn_data":
+                    self.dataManager.sIndex = 0
+                    self.dataManager.parseRtnMD(rtnData: json)
+                default:
+                    self.dataManager.sIndex = self.mdWebSocketUtils.reconnectMD(url: self.dataManager.sMdURLs[self.dataManager.sIndex], index: self.dataManager.sIndex)
+                    return
                 }
-            case "rtn_data":
-                self.index = 0
-                DataManager.getInstance().parseRtnMD(rtnData: json)
-            default:
-                return
+
+                socket.sendPeekMessage()
+
+            }catch{
+                print(error.localizedDescription)
             }
-            socket.sendPeekMessage()
+
+        }
+    }
+
+    func websocketDidReceivePong(socket: MDWebSocketUtils, data: Data?) {
+        self.lastMDTime = CACurrentMediaTime()
+        NSLog("MDPong")
+    }
+
+    //首次连接行情服务器与断开重连的行情订阅处理
+    func sendSubscribeAfterConnect(socket: MDWebSocketUtils) {
+        if !self.dataManager.sQuotesText.isEmpty{
+            socket.socket?.write(string: self.dataManager.sQuotesText)
+        }else if self.dataManager.sQuotes.count != 0{
+            if self.dataManager.sQuotes[0].isEmpty{
+                socket.sendSubscribeQuote(insList: self.dataManager.sQuotes[1].map {$0.key}[0..<CommonConstants.MAX_SUBSCRIBE_QUOTES].joined(separator: ","))
+            }else if self.dataManager.sQuotes[0].count < CommonConstants.MAX_SUBSCRIBE_QUOTES{
+                let insList = self.dataManager.getCombineInsList(data: self.dataManager.sQuotes[0].map {$0.key})
+                socket.sendSubscribeQuote(insList: insList.joined(separator: ","))
+            }else {
+                let insList = self.dataManager.getCombineInsList(data: Array(self.dataManager.sQuotes[0].map {$0.key}[0..<CommonConstants.MAX_SUBSCRIBE_QUOTES]))
+                socket.sendSubscribeQuote(insList: insList.joined(separator: ","))
+            }
+        }
+
+        if !self.dataManager.sChartsText.isEmpty{
+            socket.socket?.write(string: self.dataManager.sChartsText)
         }
     }
 
     ////////////////////////////////////////////////////////////////////////////////
 
-    func sessionSimpleDownload(urlString: String, fileName: String) {
-        NSLog("合约列表开始下载")
-        //下载地址
-        let url = URL(string: urlString)
-        //请求
-        var request = URLRequest(url: url!)
+    func sessionSimpleDownload(urlString: String) {
+        guard let url = URL(string: urlString) else {return}
+        var request = URLRequest(url: url)
         request.addValue("application/json", forHTTPHeaderField: "Accept")
-        let session = URLSession.shared
-        let handler = { (location: URL?, _: URLResponse?, error: Error?) -> Void in
-            NSLog("合约列表下载结束")
-            if error != nil {
-                print(error.debugDescription)
-                return
+        let task = URLSession.shared.dataTask(with: request) {(data, response, error) in
+            guard let data = data else { return }
+            self.dataManager.parseLatestFile(latestData: data)
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(name: Notification.Name(CommonConstants.LatestFileParsedNotification), object: nil)
             }
-            do {
-                let documentsURL = try
-                    FileManager.default.url(for: .documentDirectory,
-                                            in: .userDomainMask,
-                                            appropriateFor: nil,
-                                            create: false)
-                let savedURL = documentsURL.appendingPathComponent(fileName)
-                if FileManager.default.fileExists(atPath: savedURL.path) {
-                    try FileManager.default.removeItem(at: savedURL)
-                }
-                try FileManager.default.copyItem(at: location!, to: savedURL)
-                DataManager.getInstance().parseLatestFile()
-                DispatchQueue.main.async {
-                    NotificationCenter.default.post(name: Notification.Name(CommonConstants.LatestFileParsedNotification), object: nil)
-                }
-                self.index = self.mdWebSocketUtils.connect(url: self.mdURLs[self.index], index: self.index)
-                self.transactionWebSocketUtils.connect(url: self.tdUrl)
-            } catch {
-                print ("file error: \(error)")
-            }
+            self.dataManager.sIndex = self.mdWebSocketUtils.connect(url: self.dataManager.sMdURLs[self.dataManager.sIndex], index: self.dataManager.sIndex)
+            self.tdWebSocketUtils.connect(url: CommonConstants.TRANSACTION_URL)
         }
-        //下载任务
-        let downloadTask = session.downloadTask(with: request, completionHandler: handler)
-        //使用resume方法启动任务
-        downloadTask.resume()
+        task.resume()
     }
 
-    func initTDUrl() {
-        if let tdUrlPath = UserDefaults.standard.string(forKey: "tdUrlPath") {
-            tdUrl = CommonConstants.TRANSACTION_URL + tdUrlPath
+    ////////////////////////////////////////////////////////////////////////////////
+
+    //设置statubar的字体颜色为白
+    override func viewDidAppear(_ animated: Bool) {
+        navigationController?.navigationBar.barStyle = .black
+    }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        let dict: NSDictionary = [NSAttributedStringKey.foregroundColor: UIColor.white, NSAttributedStringKey.font: UIFont.boldSystemFont(ofSize: 18)]
+        self.navigationController?.navigationBar.titleTextAttributes = dict as? [NSAttributedStringKey: Any]
+        self.navigationController?.navigationBar.barTintColor = CommonConstants.QUOTE_PAGE_HEADER
+        self.navigationController?.navigationBar.backgroundColor = CommonConstants.QUOTE_PAGE_HEADER
+        self.navigationController?.navigationBar.tintColor = UIColor.white
+        self.setNeedsStatusBarAppearanceUpdate()
+        button.frame = CGRect(x: 0, y: 0, width: 200, height: 40)
+        if FileUtils.getOptional().isEmpty  {
+            button.setTitle(CommonConstants.titleArray[1], for: .normal)
         }else{
-            let tdUrlPath = "\(abs(UUID.init().hashValue % 10))"
-            tdUrl = CommonConstants.TRANSACTION_URL + tdUrlPath
-            UserDefaults.standard.set(tdUrlPath, forKey: "tdUrlPath")
+            button.setTitle(CommonConstants.titleArray[0], for: .normal)
+        }
+        button.setTitleColor(UIColor.white, for: .normal)
+        self.navigationItem.titleView = button
+        definesPresentationContext = true
+
+        initDefaultConfig()
+        initTMDURLs()
+        getAppVersion()
+        self.mdWebSocketUtils.mdWebSocketUtilsDelegate = self
+        self.tdWebSocketUtils.tdWebSocketUtilsDelegate = self
+        sessionSimpleDownload(urlString: CommonConstants.LATEST_FILE_URL)
+        self.DispatchTimer(delay: 15, timeInterval: 15){ timer in
+
+            if (CACurrentMediaTime() - self.lastTDTime) > 20 {
+                self.dataManager.sIsLogin = false
+                self.tdWebSocketUtils.reconnectTD(url: CommonConstants.TRANSACTION_URL)
+                NSLog("TD断线重连")
+            } else {
+                self.tdWebSocketUtils.ping()
+            }
+
+            if (CACurrentMediaTime() - self.lastMDTime) > 20 {
+                self.dataManager.sIndex = self.mdWebSocketUtils.reconnectMD(url: self.dataManager.sMdURLs[self.dataManager.sIndex], index: self.dataManager.sIndex)
+                NSLog("MD断线重连")
+            } else {
+                self.mdWebSocketUtils.ping()
+            }
+
+        }
+        NotificationCenter.default.addObserver(self, selector: #selector(refreshMenu), name: Notification.Name(CommonConstants.BrokerInfoEmptyNotification), object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(popupOptionalList), name: Notification.Name(CommonConstants.PopupOptionalInsListNotification), object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(refresh), name: Notification.Name(CommonConstants.LatestFileParsedNotification), object: nil)
+    }
+
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        MobClick.beginLogPageView("HomePage")
+    }
+
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        MobClick.endLogPageView("HomePage")
+    }
+
+    deinit {
+        print("主页销毁")
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    //iPhone下默认是.overFullScreen(全屏显示)，需要返回.none，否则没有弹出框效果，iPad则不需要
+    func adaptivePresentationStyle(for controller: UIPresentationController) -> UIModalPresentationStyle {
+        return .none
+    }
+
+    // change the width of slide menu when the orientation changes
+    override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
+    }
+
+    override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
+        switch segue.identifier {
+        case CommonConstants.MainToSearch:
+            if let searchViewController = segue.destination as? SearchTableViewController{
+                searchViewController.segueIdentify = CommonConstants.MainToSearch
+            }
+        case CommonConstants.QuotePageViewController:
+            quotePageViewController = segue.destination as? QuotePageViewController
+        case CommonConstants.QuoteNavigationCollectionViewController:
+            quoteNavigationCollectionViewController = segue.destination as? QuoteNavigationCollectionViewController
+        default:
+            return
         }
     }
 
-    func initMDURLs(){
+    //初始化默认配置
+    func initDefaultConfig() {
+
+        if UserDefaults.standard.object(forKey: CommonConstants.CONFIG_SETTING_KLINE_DURATION_DEFAULT) == nil {
+            UserDefaults.standard.set(CommonConstants.klineDurationDefault, forKey: CommonConstants.CONFIG_SETTING_KLINE_DURATION_DEFAULT)
+        }else{
+            let durations = UserDefaults.standard.stringArray(forKey: CommonConstants.CONFIG_SETTING_KLINE_DURATION_DEFAULT) ?? [String]()
+            var datas = [String]()
+            var data = ""
+            for duration in durations{
+                data = duration.replacingOccurrences(of: "钟", with: "")
+                data = data.replacingOccurrences(of: "小", with: "")
+                datas.append(data)
+            }
+            UserDefaults.standard.set(datas, forKey: CommonConstants.CONFIG_SETTING_KLINE_DURATION_DEFAULT)
+        }
+
+        if UserDefaults.standard.object(forKey: CommonConstants.CONFIG_SETTING_PARA_MA) == nil {
+        UserDefaults.standard.set(CommonConstants.PARA_MA, forKey: CommonConstants.CONFIG_SETTING_PARA_MA)
+        }
+
+        if UserDefaults.standard.object(forKey: CommonConstants.CONFIG_SETTING_TRANSACTION_SHOW_ORDER) == nil {
+            UserDefaults.standard.set(true, forKey: CommonConstants.CONFIG_SETTING_TRANSACTION_SHOW_ORDER)
+        }
+
+        if UserDefaults.standard.object(forKey: CommonConstants.CONFIG_POSITION_LINE) == nil {
+            UserDefaults.standard.set(true, forKey: CommonConstants.CONFIG_POSITION_LINE)
+        }
+
+        if UserDefaults.standard.object(forKey: CommonConstants.CONFIG_ORDER_LINE) == nil {
+            UserDefaults.standard.set(true, forKey: CommonConstants.CONFIG_ORDER_LINE)
+        }
+
+        if UserDefaults.standard.object(forKey: CommonConstants.CONFIG_AVERAGE_LINE) == nil {
+            UserDefaults.standard.set(true, forKey: CommonConstants.CONFIG_AVERAGE_LINE)
+        }
+
+        if UserDefaults.standard.object(forKey: CommonConstants.CONFIG_MD5) == nil {
+            UserDefaults.standard.set(true, forKey: CommonConstants.CONFIG_MD5)
+        }
+
+
+        if UserDefaults.standard.object(forKey: CommonConstants.CONFIG_KLINE_DAY_TYPE) == nil {
+            UserDefaults.standard.set(CommonConstants.KLINE_1_DAY, forKey: CommonConstants.CONFIG_KLINE_DAY_TYPE)
+        }
+
+        if UserDefaults.standard.object(forKey: CommonConstants.CONFIG_KLINE_HOUR_TYPE) == nil {
+            UserDefaults.standard.set(CommonConstants.KLINE_1_HOUR, forKey: CommonConstants.CONFIG_KLINE_HOUR_TYPE)
+        }
+
+        if UserDefaults.standard.object(forKey: CommonConstants.CONFIG_KLINE_MINUTE_TYPE) == nil {
+            UserDefaults.standard.set(CommonConstants.KLINE_5_MINUTE, forKey: CommonConstants.CONFIG_KLINE_MINUTE_TYPE)
+        }
+
+        if UserDefaults.standard.object(forKey: CommonConstants.CONFIG_KLINE_SECOND_TYPE) == nil {
+            UserDefaults.standard.set(CommonConstants.KLINE_3_SECOND, forKey: CommonConstants.CONFIG_KLINE_SECOND_TYPE)
+        }
+    }
+
+    //初始化服务器地址
+    func initTMDURLs(){
         let mdURLGroup = shuffle(group: [CommonConstants.MARKET_URL_2, CommonConstants.MARKET_URL_3, CommonConstants.MARKET_URL_4, CommonConstants.MARKET_URL_5, CommonConstants.MARKET_URL_6, CommonConstants.MARKET_URL_7])
-        mdURLs.append(CommonConstants.MARKET_URL_1)
-        mdURLs += mdURLGroup
+
+        if let myClass = objc_getClass("shinnyfutures.LocalCommonConstants"){
+            let myClassType = myClass as! NSObject.Type
+            let cl = myClassType.init()
+            let url = cl.value(forKey: "MARKET_URL_8") as! String
+            let transaction_url = cl.value(forKey: "TRANSACTION_URL") as! String
+            let json_url = cl.value(forKey: "LATEST_FILE_URL") as! String
+            CommonConstants.LATEST_FILE_URL = json_url
+            CommonConstants.TRANSACTION_URL = transaction_url
+            self.dataManager.sMdURLs.append(url)
+            let bugly_key = cl.value(forKey: "BUGLY_KEY") as! String
+            let umeng_key = cl.value(forKey: "UMENG_KEY") as! String
+            let baidu_key = cl.value(forKey: "BAIDU_KEY") as! String
+            dataManager.ak = cl.value(forKey: "AK") as! String
+            dataManager.sk = cl.value(forKey: "SK") as! String
+            #if DEBUG // 判断是否在测试环境下
+            // TODO
+            #else
+            Bugly.start(withAppId: bugly_key)
+            UMConfigure.initWithAppkey(umeng_key, channel: "AppStore")
+            let baidu = BaiduMobStat()
+            baidu.start(withAppId: baidu_key)
+            initAliLog()
+            #endif
+        }else{
+            self.dataManager.sMdURLs.append(CommonConstants.MARKET_URL_1)
+        }
+        self.dataManager.sMdURLs += mdURLGroup
     }
 
     func shuffle(group: [String]) -> [String] {
@@ -194,63 +342,98 @@ class MainViewController: UIViewController, MDWebSocketUtilsDelegate, TDWebSocke
         return items
     }
 
-    ////////////////////////////////////////////////////////////////////////////////
-
-
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        UIApplication.shared.statusBarStyle = .lightContent
-        let dict: NSDictionary = [NSAttributedStringKey.foregroundColor: UIColor.white, NSAttributedStringKey.font: UIFont.boldSystemFont(ofSize: 18)]
-        self.navigationController?.navigationBar.titleTextAttributes = dict as? [NSAttributedStringKey: Any]
-        self.navigationController?.navigationBar.barTintColor = UIColor.black
-        self.navigationController?.navigationBar.tintColor = UIColor.white
-        initMDURLs()
-        initTDUrl()
-        self.mdWebSocketUtils.mdWebSocketUtilsDelegate = self
-        self.transactionWebSocketUtils.tdWebSocketUtilsDelegate = self
-        sessionSimpleDownload(urlString: CommonConstants.LATEST_FILE_URL, fileName: "latest.json")
-        initSlideMenuWidth()
+    //初始化阿里日志服务
+    func initAliLog() {
+        // 初始化配置信息
+        let cf = SLSConfig(connectType: .wifiOrwwan, cachable: true)
+        dataManager.sClient = LOGClient(endPoint: "http://cn-shanghai.log.aliyuncs.com",
+                            accessKeyID: dataManager.ak,
+                            accessKeySecret: dataManager.sk,
+                            projectName: "kq-xq",
+                            token: nil,
+                            config: cf)
+        //打开调试开关
+        dataManager.sClient?.mIsLogEnable = true
     }
 
-    deinit {
-        print("主页销毁")
-    }
-
-    // change the width of slide menu when the orientation changes
-    override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
-        initSlideMenuWidth()
-    }
-
-    override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
-        switch segue.identifier {
-        case CommonConstants.MainToFeedback:
-            controlSlideMenuVisibility()
-        case CommonConstants.QuotePageViewController:
-            quotePageViewController = segue.destination as! QuotePageViewController
-        case CommonConstants.QuoteNavigationCollectionViewController:
-            quoteNavigationCollectionViewController = segue.destination as! QuoteNavigationCollectionViewController
-        default:
-            return
+    //获取软件版本
+    func getAppVersion() {
+        if let appVersion = Bundle.main.infoDictionary!["CFBundleShortVersionString"] as? String, let appBuild = Bundle.main.infoDictionary!["CFBundleVersion"] as? String{
+            self.dataManager.sAppVersion = appVersion
+            self.dataManager.sAppBuild = appBuild
+            let versionCode = UserDefaults.standard.integer(forKey: "versionCode")
+            if let versionCodeNow = Int(appBuild){
+                if versionCode < versionCodeNow {
+                    //免责条款
+                    ResponsibilityView.getInstance().showResponsibility()
+                    UserDefaults.standard.set(versionCodeNow, forKey: "versionCode")
+                }
+            }
         }
+    }
+
+    /// GCD定时器循环操作
+    func DispatchTimer(delay: Double, timeInterval: Double, handler:@escaping (DispatchSourceTimer?)->())
+    {
+        let timer = DispatchSource.makeTimerSource(flags: [], queue: DispatchQueue.main)
+        timer.schedule(deadline: .now() + delay, repeating: timeInterval)
+        timer.setEventHandler {
+            DispatchQueue.main.async {
+                handler(timer)
+            }
+        }
+        timer.resume()
     }
 
     // MARK: Actions
-//    @IBAction func loginViewControllerUnwindSegue(segue: UIStoryboardSegue) {
-//        print("我从登陆页来～")
-//    }
-
-    @IBAction func accountViewControllerUnwindSegue(segue: UIStoryboardSegue) {
-        print("我从账户资金来～")
+    @IBAction func settingViewControllerUnwindSegue(segue: UIStoryboardSegue) {
+        print("我从设置页来～")
     }
 
-    @IBAction func toAccount(_ sender: UIButton) {
-        controlSlideMenuVisibility()
-        if !DataManager.getInstance().sIsLogin {
-            DataManager.getInstance().sToLoginTarget = "Account"
-            performSegue(withIdentifier: CommonConstants.MainToLogin, sender: sender)
+    func toSetting() {
+        performSegue(withIdentifier: CommonConstants.MainToSetting, sender: nil)
+    }
+
+    @IBAction func feedbackViewControllerUnwindSegue(segue: UIStoryboardSegue) {
+        print("我从反馈页来～")
+    }
+
+    func toFeedback() {
+        performSegue(withIdentifier: CommonConstants.MainToFeedback, sender: nil)
+    }
+
+    @IBAction func aboutViewControllerUnwindSegue(segue: UIStoryboardSegue) {
+        print("我从关于页来～")
+    }
+
+    func toAbout() {
+        performSegue(withIdentifier: CommonConstants.MainToAbout, sender: nil)
+    }
+
+    func toLogin() {
+        self.dataManager.sToLoginTarget = "Login"
+        performSegue(withIdentifier: CommonConstants.MainToLogin, sender: nil)
+    }
+
+    @IBAction func accountViewControllerUnwindSegue(segue: UIStoryboardSegue) {
+        print("我从账户资金页来～")
+    }
+
+    func toAccount() {
+        if !self.dataManager.sIsLogin {
+            self.dataManager.sToLoginTarget = "Account"
+            performSegue(withIdentifier: CommonConstants.MainToLogin, sender: nil)
         } else {
-            performSegue(withIdentifier: CommonConstants.MainToAccount, sender: sender)
+            performSegue(withIdentifier: CommonConstants.MainToAccount, sender: nil)
         }
+    }
+
+    @IBAction func changePasswordViewControllerUnwindSegue(segue: UIStoryboardSegue) {
+        print("我从修改密码页来～")
+    }
+
+    func toChangePassword() {
+        performSegue(withIdentifier: CommonConstants.MainToChangePassword, sender: nil)
     }
 
     @IBAction func quoteViewControllerUnwindSegue(segue: UIStoryboardSegue) {
@@ -258,33 +441,24 @@ class MainViewController: UIViewController, MDWebSocketUtilsDelegate, TDWebSocke
         if let segue = segue.identifier {
             switch segue {
             case CommonConstants.QuoteViewControllerUnwindSegue:
-                MDWebSocketUtils.getInstance().sendSubscribeQuote(insList: DataManager.getInstance().sPreInsList)
-                MDWebSocketUtils.getInstance().sendSetChart(insList: "")
-                MDWebSocketUtils.getInstance().sendSetChartDay(insList: "", viewWidth: CommonConstants.VIEW_WIDTH)
-                MDWebSocketUtils.getInstance().sendSetChartHour(insList: "", viewWidth: CommonConstants.VIEW_WIDTH)
-                MDWebSocketUtils.getInstance().sendSetChartMinute(insList: "", viewWidth: CommonConstants.VIEW_WIDTH)
+                MDWebSocketUtils.getInstance().sendSubscribeQuote(insList: self.dataManager.sPreInsList)
             default:
                 break
             }
         }
     }
 
-    @IBAction func toPosition(_ sender: UIButton) {
-        controlSlideMenuVisibility()
-        if !DataManager.getInstance().sIsLogin {
-            DataManager.getInstance().sToLoginTarget = "Position"
-            performSegue(withIdentifier: CommonConstants.MainToLogin, sender: sender)
+    func toPosition() {
+        self.dataManager.sToQuoteTarget = "Position"
+        if !self.dataManager.sIsLogin {
+            self.dataManager.sToLoginTarget = "Position"
+            performSegue(withIdentifier: CommonConstants.MainToLogin, sender: nil)
         } else {
-            performSegue(withIdentifier: CommonConstants.MainToQuote, sender: sender)
-            let instrumentId = DataManager.getInstance().sQuotes[1].map {$0.key}[0]
+            performSegue(withIdentifier: CommonConstants.MainToQuote, sender: nil)
+            let instrumentId = self.dataManager.sQuotes[1].map {$0.key}[0]
             //进入合约详情页的入口有：合约列表页，登陆页，搜索页，主页
-            DataManager.getInstance().sPreInsList = DataManager.getInstance().sRtnMD[RtnMDConstants.ins_list].stringValue
-            DataManager.getInstance().sInstrumentId = instrumentId
-            MDWebSocketUtils.getInstance().sendSubscribeQuote(insList: instrumentId)
-            MDWebSocketUtils.getInstance().sendSetChart(insList: instrumentId)
-            MDWebSocketUtils.getInstance().sendSetChartDay(insList: instrumentId, viewWidth: CommonConstants.VIEW_WIDTH)
-            MDWebSocketUtils.getInstance().sendSetChartHour(insList: instrumentId, viewWidth: CommonConstants.VIEW_WIDTH)
-            MDWebSocketUtils.getInstance().sendSetChartMinute(insList: instrumentId, viewWidth: CommonConstants.VIEW_WIDTH)
+            self.dataManager.sPreInsList = self.dataManager.sRtnMD.ins_list
+            self.dataManager.sInstrumentId = instrumentId
         }
     }
 
@@ -292,13 +466,12 @@ class MainViewController: UIViewController, MDWebSocketUtilsDelegate, TDWebSocke
         print("我从成交记录来～")
     }
 
-    @IBAction func toTrade(_ sender: UIButton) {
-        controlSlideMenuVisibility()
-        if !DataManager.getInstance().sIsLogin {
-            DataManager.getInstance().sToLoginTarget = "Trade"
-            performSegue(withIdentifier: CommonConstants.MainToLogin, sender: sender)
+    func toTrade() {
+        if !self.dataManager.sIsLogin {
+            self.dataManager.sToLoginTarget = "Trade"
+            performSegue(withIdentifier: CommonConstants.MainToLogin, sender: nil)
         } else {
-            performSegue(withIdentifier: CommonConstants.MainToTrade, sender: sender)
+            performSegue(withIdentifier: CommonConstants.MainToTrade, sender: nil)
         }
     }
 
@@ -306,72 +479,41 @@ class MainViewController: UIViewController, MDWebSocketUtilsDelegate, TDWebSocke
         print("我从银期转帐来～")
     }
 
-    @IBAction func toBankTransfer(_ sender: UIButton){
-        controlSlideMenuVisibility()
-        if !DataManager.getInstance().sIsLogin {
-            DataManager.getInstance().sToLoginTarget = "BankTransfer"
-            performSegue(withIdentifier: CommonConstants.MainToLogin, sender: sender)
+    func toBankTransfer(){
+        if !self.dataManager.sIsLogin {
+            self.dataManager.sToLoginTarget = "BankTransfer"
+            performSegue(withIdentifier: CommonConstants.MainToLogin, sender: nil)
         } else {
-            performSegue(withIdentifier: CommonConstants.MainToBankTransfer, sender: sender)
+            performSegue(withIdentifier: CommonConstants.MainToBankTransfer, sender: nil)
         }
     }
 
+    func toOpenAccount() {
+        let appString = "https://itunes.apple.com/cn/app/%E6%9C%9F%E8%B4%A7%E5%BC%80%E6%88%B7%E4%BA%91/id1058174819?mt=8"
+        let appUrl = URL(string: appString)
+        UIApplication.shared.open(appUrl!)
+    }
+
     @IBAction func navigation(_ sender: UIBarButtonItem) {
-        controlSlideMenuVisibility()
+        if let slide = self.slideMenuController() {
+            slide.openLeft()
+        }
     }
 
-    @IBAction func toOptional(_ sender: UIButton) {
-        controlSlideMenuVisibility()
-        self.title = CommonConstants.titleArray[0]
-        switchPage(index: 0)
-    }
-
-    @IBAction func toDomain(_ sender: UIButton) {
-        controlSlideMenuVisibility()
-        self.title = CommonConstants.titleArray[1]
-        switchPage(index: 1)
-    }
-
-    @IBAction func toShanghai(_ sender: UIButton) {
-        controlSlideMenuVisibility()
-        self.title = CommonConstants.titleArray[2]
-        switchPage(index: 2)
-    }
-
-    @IBAction func toNengyuan(_ sender: UIButton) {
-        controlSlideMenuVisibility()
-        self.title = CommonConstants.titleArray[3]
-        switchPage(index: 3)
-    }
-
-    @IBAction func toDalian(_ sender: UIButton) {
-        controlSlideMenuVisibility()
-        self.title = CommonConstants.titleArray[4]
-        switchPage(index: 4)
-    }
-
-    @IBAction func toZhengzhou(_ sender: UIButton) {
-        controlSlideMenuVisibility()
-        self.title = CommonConstants.titleArray[5]
-        switchPage(index: 5)
-    }
-
-    @IBAction func toZhongjin(_ sender: UIButton) {
-        controlSlideMenuVisibility()
-        self.title = CommonConstants.titleArray[6]
-        switchPage(index: 6)
-    }
-
-    @IBAction func toDaLianZuHe(_ sender: UIButton) {
-        controlSlideMenuVisibility()
-        self.title = CommonConstants.titleArray[7]
-        switchPage(index: 7)
-    }
-
-    @IBAction func toZhengZhouZuHe(_ sender: UIButton) {
-        controlSlideMenuVisibility()
-        self.title = CommonConstants.titleArray[8]
-        switchPage(index: 8)
+    @IBAction func right_navigation(_ sender: UIBarButtonItem) {
+        if let slide = self.slideMenuController() {
+            if let right = slide.rightViewController as? RightTableViewController{
+                if self.dataManager.sIsEmpty{
+                    right.datas = CommonConstants.rightArray
+                }else if self.dataManager.sIsLogin {
+                    right.datas = CommonConstants.rightTitleArrayLogged
+                }else{
+                    right.datas = CommonConstants.rightTitleArray
+                }
+                right.tableView.reloadData()
+                slide.openRight()
+            }
+        }
     }
 
     @IBAction func left(_ sender: UIButton) {
@@ -394,51 +536,42 @@ class MainViewController: UIViewController, MDWebSocketUtilsDelegate, TDWebSocke
         }
     }
 
-    @IBAction func background(_ sender: UIButton) {
-        controlSlideMenuVisibility()
+    @objc func refreshMenu(){
     }
 
-    // MARK: private func
-    //初始化侧滑栏约束，控制其隐藏显示
-    private func initSlideMenuWidth() {
-        switch UIDevice.current.orientation {
-        case .portrait:
-            slideMenuConstraint.constant = -180
-        case .portraitUpsideDown:
-            slideMenuConstraint.constant = -180
-        case .landscapeLeft:
-            slideMenuConstraint.constant = -120
-        case .landscapeRight:
-            slideMenuConstraint.constant = -120
-        default:
-            print("什么鬼～")
-        }
+    @objc func popupOptionalList(){
+        if let optionalPopupView = UIStoryboard(name: "Main", bundle: nil).instantiateViewController(withIdentifier: CommonConstants.OptionalPopupTableViewController) as? OptionalPopupTableViewController {
 
+            optionalPopupView.modalPresentationStyle = .popover
+            //箭头所指向的区域
+            optionalPopupView.popoverPresentationController?.sourceView = self.navigationItem.titleView
+            optionalPopupView.popoverPresentationController?.sourceRect = (self.navigationItem.titleView?.bounds)!
+            //箭头方向
+            optionalPopupView.popoverPresentationController?.permittedArrowDirections = .up
+            //设置代理
+            optionalPopupView.popoverPresentationController?.delegate = self
+            //弹出框口大小
+            //optionalPopupView.preferredContentSize = CGSize(width: UIScreen.main.bounds.width, height: 44.0)
+            self.present(optionalPopupView, animated: true, completion: nil)
+        }
     }
 
-    //控制侧滑栏隐藏显示
-    private func controlSlideMenuVisibility() {
-        if isSlideMenuHidden {
-            slideMenuConstraint.constant = 0
-            UIView.animate(withDuration: 0.3, animations: {
-                self.view.layoutIfNeeded()})
-            UIView.animate(withDuration: 0.3, animations: {
-                self.background.alpha = 0.5
-            })
-        } else {
-            slideMenuConstraint.constant = -menu.frame.size.width
-            UIView.animate(withDuration: 0.3, animations: {
-                self.view.layoutIfNeeded()
-            })
-            UIView.animate(withDuration: 0.3, animations: {
-                self.background.alpha = 0.0
-            })
+    func popoverPresentationControllerDidDismissPopover(_ popoverPresentationController: UIPopoverPresentationController) {
+        MDWebSocketUtils.getInstance().sendSubscribeQuote(insList: FileUtils.getOptional().joined(separator: ","))
+    }
+
+    //latestFile文件解析完毕后刷新导航列表
+    @objc func refresh() {
+        if dataManager.sQuotes[0].isEmpty {
+            loadQuoteNavigation(index: 1)
+        }else{
+            loadQuoteNavigation(index: 0)
         }
-        isSlideMenuHidden = !isSlideMenuHidden
     }
 
     //切换交易所行情列表
-    private func switchPage(index: Int) {
+    func switchPage(index: Int) {
+        button.setTitle(CommonConstants.titleArray[index], for: .normal)
         if quotePageViewController.currentIndex < index {
             quotePageViewController.forwardPage(index: index)
         } else if quotePageViewController.currentIndex > index {

@@ -34,9 +34,12 @@ open class VolumeKeyboardView: UIView {
     open weak var delegate: VolumeKeyboardViewDelegate?
     var view: UIView!
     fileprivate var processor = VolumeKeyboardViewProcessor()
+
+    @IBOutlet weak var priceTickTitle: UILabel!
     @IBOutlet weak var priceTick: UILabel!
-    @IBOutlet weak var openVolume: UILabel!
+    @IBOutlet weak var upperLimitTitle: UILabel!
     @IBOutlet weak var upperLimit: UILabel!
+    @IBOutlet weak var lowerLimitTitle: UILabel!
     @IBOutlet weak var lowerLimit: UILabel!
     
     public required init?(coder aDecoder: NSCoder) {
@@ -58,21 +61,32 @@ open class VolumeKeyboardView: UIView {
         view.frame = bounds
         view.autoresizingMask = [UIViewAutoresizing.flexibleWidth, UIViewAutoresizing.flexibleHeight]
         addSubview(view)
-        priceTick.text = DataManager.getInstance().sSearchEntities[DataManager.getInstance().sInstrumentId]?.p_tick
-        let margin = (DataManager.getInstance().sSearchEntities[DataManager.getInstance().sInstrumentId]?.margin)!
-        if margin == 0{
-            openVolume.text = "0"
-        }else {
-            let user = DataManager.getInstance().sRtnTD[DataManager.getInstance().sUser_id]
-            for (_, account) in user[RtnTDConstants.accounts].dictionaryValue {
-                let available = account[AccountConstants.available].intValue
-                openVolume.text = "\(available / margin)"
-            }
-        }
+        initData()
+    }
 
-        let quote = DataManager.getInstance().sRtnMD[RtnMDConstants.quotes][DataManager.getInstance().sInstrumentId]
-        upperLimit.text = quote[QuoteConstants.upper_limit].stringValue
-        lowerLimit.text = quote[QuoteConstants.lower_limit].stringValue
+
+    func initData() {
+        refreshPrice()
+    }
+
+    func refreshPrice() {
+        let dataManager = DataManager.getInstance()
+        let instrument_id = dataManager.sInstrumentId
+
+        priceTick.text = dataManager.sSearchEntities[instrument_id]?.p_tick
+
+        let decimal = dataManager.getDecimalByPtick(instrumentId: instrument_id)
+        guard let quote = dataManager.sRtnMD.quotes[instrument_id] else {return}
+        let upper = "\(quote.upper_limit ?? 0.0)"
+        let lower = "\(quote.lower_limit ?? 0.0)"
+        upperLimit.text = dataManager.saveDecimalByPtick(decimal: decimal, data: upper)
+        lowerLimit.text = dataManager.saveDecimalByPtick(decimal: decimal, data: lower)
+    }
+
+    func setVolume(volume: String?) {
+        if let volume = volume {
+            processor.currentOperand = volume
+        }
     }
 
     fileprivate func loadViewFromNib() -> UIView {
@@ -123,7 +137,9 @@ class VolumeKeyboardViewProcessor {
         var output = 0
         switch tag {
         case VolumeKey.subtract.rawValue:
-            output = value - 1
+            if value >= 1{
+                output = value - 1
+            }
         case VolumeKey.add.rawValue:
             output = value + 1
         default:
@@ -149,7 +165,7 @@ class VolumeKeyboardViewProcessor {
     }
 
     fileprivate func resetOperand() -> String {
-        let operand = "1"
+        let operand = ""
         return operand
     }
 

@@ -10,5 +10,10 @@
 #define shinnyfutures_Bridging_Header_h
 
 #import <Bugly/Bugly.h>
+#import <UMCommon/UMCommon.h>
+#import <UMAnalytics/MobClick.h>
+#import "BaiduMobStat.h"
+#import "SwiftTryCatch.h"
+#import "Amplitude.h"
 
 #endif /* shinnyfutures_Bridging_Header_h */

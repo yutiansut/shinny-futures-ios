@@ -8,19 +8,47 @@
 
 import UIKit
 import Siren
-import Bugly
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
 
     var window: UIWindow?
+    let dataManager = DataManager.getInstance()
+
+    fileprivate func createMenuView() {
+
+        // create viewController code...
+        let storyboard = UIStoryboard(name: "Main", bundle: nil)
+
+        let mainViewController = storyboard.instantiateViewController(withIdentifier: "MainViewController") as! MainViewController
+        let leftViewController = storyboard.instantiateViewController(withIdentifier: "LeftTableViewController") as! LeftTableViewController
+        let rightViewController = storyboard.instantiateViewController(withIdentifier: "RightTableViewController") as! RightTableViewController
+
+        let nvc: UINavigationController = UINavigationController(rootViewController: mainViewController)
+        leftViewController.mainViewController = mainViewController
+        rightViewController.mainViewController = mainViewController
+
+        let slideMenuController = SlideMenuController(mainViewController: nvc, leftMenuViewController: leftViewController, rightMenuViewController: rightViewController)
+        slideMenuController.automaticallyAdjustsScrollViewInsets = true
+        slideMenuController.delegate = mainViewController
+        self.window?.backgroundColor = UIColor(red: 236.0, green: 238.0, blue: 241.0, alpha: 1.0)
+        self.window?.rootViewController = slideMenuController
+        self.window?.makeKeyAndVisible()
+    }
+
     
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplicationLaunchOptionsKey: Any]?) -> Bool {
         // Override point for customization after application launch.
-        Bugly.start(withAppId: "0027757d18")
         Siren.shared.checkVersion(checkType: .immediately)
+        if let statusBarView = UIApplication.shared.value(forKeyPath: "statusBarWindow.statusBar") as? UIView {
+            statusBarView.backgroundColor = CommonConstants.STATUS_BAR
+        }
+        self.createMenuView()
+        UIApplication.shared.isIdleTimerDisabled = true
+
         return true
     }
+
 
     func applicationWillResignActive(_ application: UIApplication) {
         // Sent when the application is about to move from active to inactive state. This can occur for certain types of temporary interruptions (such as an incoming phone call or SMS message) or when the user quits the application and it begins the transition to the background state.
@@ -30,11 +58,15 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     func applicationDidEnterBackground(_ application: UIApplication) {
         // Use this method to release shared resources, save user data, invalidate timers, and store enough application state information to restore your application to its current state in case it is terminated later.
         // If your application supports background execution, this method is called instead of applicationWillTerminate: when the user quits.
+        TDWebSocketUtils.getInstance().disconnect()
+        MDWebSocketUtils.getInstance().disconnect()
     }
 
     func applicationWillEnterForeground(_ application: UIApplication) {
         // Called as part of the transition from the background to the inactive state; here you can undo many of the changes made on entering the background.
         Siren.shared.checkVersion(checkType: .immediately)
+        dataManager.sIndex = MDWebSocketUtils.getInstance().connect(url: dataManager.sMdURLs[dataManager.sIndex], index: dataManager.sIndex)
+        TDWebSocketUtils.getInstance().connect(url: CommonConstants.TRANSACTION_URL)
     }
 
     func applicationDidBecomeActive(_ application: UIApplication) {
@@ -47,3 +79,4 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
 }
+

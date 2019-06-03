@@ -8,24 +8,28 @@
 
 import UIKit
 
-class QuoteNavigationCollectionViewController: UICollectionViewController {
+class QuoteNavigationCollectionViewController: UICollectionViewController, UICollectionViewDelegateFlowLayout {
     // MARK: Properties
     var insList = [String]()
     var nameList = [String]()
     var mainViewController: MainViewController!
-    let mananger = DataManager.getInstance()
+    let manager = DataManager.getInstance()
 
     override func viewDidLoad() {
         super.viewDidLoad()
 
-        loadDatas(index: 1)
+        if FileUtils.getOptional().isEmpty {
+            loadDatas(index: 1)
+        }else{
+            loadDatas(index: 0)
+        }
 
         NotificationCenter.default.addObserver(self, selector: #selector(refresh), name: Notification.Name(CommonConstants.LatestFileParsedNotification), object: nil)
 
     }
 
     override func viewDidAppear(_ animated: Bool) {
-        mainViewController = self.parent as! MainViewController
+        mainViewController = self.parent as? MainViewController
     }
 
     deinit {
@@ -72,16 +76,27 @@ class QuoteNavigationCollectionViewController: UICollectionViewController {
 
     }
 
+    func collectionView(_ collectionView: UICollectionView, layout collectionViewLayout: UICollectionViewLayout, sizeForItemAt indexPath: IndexPath) -> CGSize {
+        let label = nameList[indexPath.row]
+        let width = textWidth(text: label, font: UIFont(name: "Helvetica Neue", size: 17)) + 10
+        return CGSize(width: width, height: 44)
+    }
+
+    func textWidth(text: String, font: UIFont?) -> CGFloat {
+        let attributes = font != nil ? [NSAttributedStringKey.font: font] : [:]
+        return text.size(withAttributes: attributes as [NSAttributedStringKey : Any]).width
+    }
+
     // MARK: Public Methods
     func loadDatas(index: Int) {
         insList.removeAll()
-        if index >= mananger.sInsListNames.count {
+        if index >= manager.sInsListNames.count {
             return
         }
 
-        insList = mananger.sInsListNames[index].map{$0.value}
+        insList = manager.sInsListNames[index].map{$0.value}
 
-        nameList = mananger.sInsListNames[index].map{$0.key}
+        nameList = manager.sInsListNames[index].map{$0.key}
 
         collectionView?.reloadData()
         //collectionView更改数据源清空collectionviewLayout的缓存，让autolayout重新计算UICollectionView的cell的size，防止崩溃
@@ -92,14 +107,20 @@ class QuoteNavigationCollectionViewController: UICollectionViewController {
     //latestFile文件解析完毕后刷新导航列表
     @objc func refresh() {
         insList.removeAll()
-        let index = 1
-        if index >= mananger.sInsListNames.count {
+        var index = 1
+        if manager.sQuotes[0].isEmpty {
+            index = 1
+        }else{
+            index = 0
+        }
+
+        if index >= manager.sInsListNames.count {
             return
         }
 
-        insList = mananger.sInsListNames[index].map{$0.value}
+        insList = manager.sInsListNames[index].map{$0.value}
 
-        nameList = mananger.sInsListNames[index].map{$0.key}
+        nameList = manager.sInsListNames[index].map{$0.key}
 
         self.collectionView?.reloadData()
         //collectionView更改数据源清空collectionviewLayout的缓存，让autolayout重新计算UICollectionView的cell的size，防止崩溃

@@ -56,45 +56,77 @@ class HandicapViewController: UIViewController {
     @objc private func refreshDatas() {
         let instrumentId = dataManager.sInstrumentId
         let decimal = dataManager.getDecimalByPtick(instrumentId: instrumentId)
-        let quoteJson = dataManager.sRtnMD[RtnMDConstants.quotes][instrumentId]
-        let ask_price1 = quoteJson[QuoteConstants.ask_price1].floatValue
-        let ask_volume1 = quoteJson[QuoteConstants.ask_volume1].intValue
-        let bid_price1 = quoteJson[QuoteConstants.bid_price1].floatValue
-        let bid_volume1 = quoteJson[QuoteConstants.bid_volume1].intValue
-        let last_price = quoteJson[QuoteConstants.last_price].floatValue
-        let open = quoteJson[QuoteConstants.open].floatValue
-        let volume = quoteJson[QuoteConstants.volume].intValue
-        let highest = quoteJson[QuoteConstants.highest].floatValue
-        let open_interest = quoteJson[QuoteConstants.open_interest].intValue
-        let pre_open_interest = quoteJson[QuoteConstants.pre_open_interest].intValue
-        let lowest = quoteJson[QuoteConstants.lowest].floatValue
-        let average = quoteJson[QuoteConstants.average].floatValue
-        let pre_close = quoteJson[QuoteConstants.pre_close].floatValue
-        let upper_limit = quoteJson[QuoteConstants.upper_limit].floatValue
-        let pre_settlement = quoteJson[QuoteConstants.pre_settlement].floatValue
-        let lower_limit = quoteJson[QuoteConstants.lower_limit].floatValue
-        let settlement = quoteJson[QuoteConstants.settlement].floatValue
+        guard var quote = dataManager.sRtnMD.quotes[instrumentId] else {return}
+        if instrumentId.contains("&") && instrumentId.contains(" ") {
+            quote = dataManager.calculateCombineQuoteFull(quote: quote.copy() as! Quote)
+        }
+        let ask_price1 = "\(quote.ask_price1 ?? "-")"
+        let ask_volume1 = "\(quote.ask_volume1 ?? "-")"
+        let bid_price1 = "\(quote.bid_price1 ?? "-")"
+        let bid_volume1 = "\(quote.bid_volume1 ?? "-")"
+        let last_price = "\(quote.last_price ?? "-")"
+        let open = "\(quote.open ?? "-")"
+        let volume = "\(quote.volume ?? "-")"
+        let highest = "\(quote.highest ?? "-")"
+        let open_interest = "\(quote.open_interest ?? "-")"
+        let pre_open_interest = "\(quote.pre_open_interest ?? "-")"
+        let lowest = "\(quote.lowest ?? "-")"
+        let average = "\(quote.average ?? "-")"
+        let pre_close = "\(quote.pre_close ?? "-")"
+        let upper_limit = "\(quote.upper_limit ?? "-")"
+        let pre_settlement = "\(quote.pre_settlement ?? "-")"
+        let lower_limit = "\(quote.lower_limit ?? "-")"
+        let settlement = "\(quote.settlement ?? "-")"
         
-        self.ask_price1.text = String(format: "%.\(decimal)f", ask_price1)
-        self.ask_volume1.text = "\(ask_volume1)"
-        self.bid_price1.text = String(format: "%.\(decimal)f", bid_price1)
-        self.bid_volume1.text = "\(bid_volume1)"
-        self.latest.text = String(format: "%.\(decimal)f", last_price)
-        self.change.text = String(format: "%.\(decimal)f", last_price - pre_settlement)
-        self.open.text = String(format: "%.\(decimal)f", open)
-        self.volume.text = "\(volume)"
-        self.highest.text = String(format: "%.\(decimal)f", highest)
-        self.lowest.text = String(format: "%.\(decimal)f", lowest)
-        self.open_interest.text = "\(open_interest)"
-        self.sub_open_interest.text = "\(open_interest - pre_open_interest)"
-        self.average.text = String(format: "%.\(decimal)f", average)
-        self.settlement.text = String(format: "%.\(decimal)f", settlement)
-        self.pre_close.text = String(format: "%.\(decimal)f", pre_close)
-        self.upper_limit.text = String(format: "%.\(decimal)f", upper_limit)
-        self.pre_settlement.text = String(format: "%.\(decimal)f", pre_settlement)
-        self.lower_limit.text = String(format: "%.\(decimal)f", lower_limit)
+        if let last = Float(last_price), let pre_settlement = Float(pre_settlement){
+            let change = last - pre_settlement
+            self.change.text = String(format: "%.\(decimal)f", change)
+        }
         
+        if let open_interest = Int(open_interest), let pre_open_interest = Int(pre_open_interest){
+            let sub_open_interest = open_interest - pre_open_interest
+            self.sub_open_interest.text = "\(sub_open_interest)"
+        }
         
+        self.ask_price1.text = dataManager.saveDecimalByPtick(decimal: decimal, data: ask_price1)
+        self.ask_volume1.text = ask_volume1
+        self.bid_price1.text = dataManager.saveDecimalByPtick(decimal: decimal, data: bid_price1)
+        self.bid_volume1.text = bid_volume1
+        self.latest.text = dataManager.saveDecimalByPtick(decimal: decimal, data: last_price)
+
+        self.open.text = dataManager.saveDecimalByPtick(decimal: decimal, data: open)
+        self.volume.text = volume
+        self.highest.text = dataManager.saveDecimalByPtick(decimal: decimal, data: highest)
+        self.lowest.text = dataManager.saveDecimalByPtick(decimal: decimal, data: lowest)
+        self.open_interest.text = open_interest
+
+        self.average.text = dataManager.saveDecimalByPtick(decimal: decimal, data: average)
+        self.settlement.text = dataManager.saveDecimalByPtick(decimal: decimal, data: settlement)
+        self.pre_close.text = dataManager.saveDecimalByPtick(decimal: decimal, data: pre_close)
+        self.upper_limit.text = dataManager.saveDecimalByPtick(decimal: decimal, data: upper_limit)
+        self.pre_settlement.text = dataManager.saveDecimalByPtick(decimal: decimal, data: pre_settlement)
+        self.lower_limit.text = dataManager.saveDecimalByPtick(decimal: decimal, data: lower_limit)
+
+        setLabelColor(label: self.ask_price1, pre_settlement: pre_settlement)
+        setLabelColor(label: self.bid_price1, pre_settlement: pre_settlement)
+        setLabelColor(label: self.latest, pre_settlement: pre_settlement)
+        setLabelColor(label: self.highest, pre_settlement: pre_settlement)
+        setLabelColor(label: self.lowest, pre_settlement: pre_settlement)
+        setLabelColor(label: self.open, pre_settlement: pre_settlement)
     }
-    
+
+    func setLabelColor(label: UILabel, pre_settlement: String) {
+        if let price = Float(label.text ?? "-"), let pre_settlement = Float(pre_settlement) {
+            let value = price - pre_settlement
+            if value < 0 {
+                label.textColor = CommonConstants.ASK_BUTTON
+            }else if value > 0{
+                label.textColor = CommonConstants.BID_BUTTON
+            }else{
+                label.textColor = CommonConstants.WHITE_TEXT
+            }
+        }else{
+            label.textColor = CommonConstants.WHITE_TEXT
+        }
+    }
 }

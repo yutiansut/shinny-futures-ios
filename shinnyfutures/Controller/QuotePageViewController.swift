@@ -18,7 +18,12 @@ class QuotePageViewController: UIPageViewController, UIPageViewControllerDataSou
         super.viewDidLoad()
         self.delegate = self
         self.dataSource = self
-        if let startingViewController = contentViewController(at: 1) {
+        if FileUtils.getOptional().isEmpty {
+            currentIndex = 1
+        }else{
+            currentIndex = 0
+        }
+        if let startingViewController = contentViewController(at: currentIndex) {
             setViewControllers([startingViewController], direction: .forward, animated: false, completion: nil)
         }
         // Do any additional setup after loading the view.
@@ -26,7 +31,7 @@ class QuotePageViewController: UIPageViewController, UIPageViewControllerDataSou
     }
 
     override func viewDidAppear(_ animated: Bool) {
-        mainViewController = self.parent as! MainViewController
+        mainViewController = self.parent as? MainViewController
     }
 
     deinit {
@@ -39,13 +44,15 @@ class QuotePageViewController: UIPageViewController, UIPageViewControllerDataSou
     }
 
     func pageViewController(_ pageViewController: UIPageViewController, viewControllerBefore viewController: UIViewController) -> UIViewController? {
-        var index = (viewController as! QuoteTableViewController).index
-        index -= 1
-        return contentViewController(at: index)
+        if let view = viewController as? QuoteTableViewController {
+            let index = view.index - 1
+            return contentViewController(at: index)
+        }
+        return contentViewController(at: 1)
     }
 
     func pageViewController(_ pageViewController: UIPageViewController, viewControllerAfter viewController: UIViewController) -> UIViewController? {
-        var index = (viewController as! QuoteTableViewController).index
+        guard var index = (viewController as? QuoteTableViewController)?.index else {return contentViewController(at: 1)}
         index += 1
         return contentViewController(at: index)
     }
@@ -56,7 +63,7 @@ class QuotePageViewController: UIPageViewController, UIPageViewControllerDataSou
             if let contentViewController = pageViewController.viewControllers?.first as? QuoteTableViewController {
                 let index = contentViewController.index
                 currentIndex = index
-                mainViewController.title = CommonConstants.titleArray[index]
+                mainViewController.button.setTitle(CommonConstants.titleArray[index], for: .normal)
                 mainViewController.loadQuoteNavigation(index: index)
                 contentViewController.sendSubscribeQuotes()
             }
@@ -95,7 +102,12 @@ class QuotePageViewController: UIPageViewController, UIPageViewControllerDataSou
     }
 
     @objc private func refreshPage() {
-        if let startingViewController = contentViewController(at: 1) {
+        if manager.sQuotes[0].isEmpty {
+            currentIndex = 1
+        }else{
+            currentIndex = 0
+        }
+        if let startingViewController = contentViewController(at: currentIndex) {
             setViewControllers([startingViewController], direction: .forward, animated: false, completion: nil)
         }
     }

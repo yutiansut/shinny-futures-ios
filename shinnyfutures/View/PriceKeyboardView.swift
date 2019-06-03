@@ -40,7 +40,6 @@ open class PriceKeyboardView: UIView {
     var view: UIView!
     var processor = PriceKeyboardViewProcessor()
     @IBOutlet weak var priceTick: UILabel!
-    @IBOutlet weak var openVolume: UILabel!
     @IBOutlet weak var upperLimit: UILabel!
     @IBOutlet weak var lowerLimit: UILabel!
 
@@ -63,22 +62,29 @@ open class PriceKeyboardView: UIView {
         view.frame = bounds
         view.autoresizingMask = [UIViewAutoresizing.flexibleWidth, UIViewAutoresizing.flexibleHeight]
         addSubview(view)
-        priceTick.text = DataManager.getInstance().sSearchEntities[DataManager.getInstance().sInstrumentId]?.p_tick
-        let margin = (DataManager.getInstance().sSearchEntities[DataManager.getInstance().sInstrumentId]?.margin)!
-        if margin == 0{
-            openVolume.text = "0"
-        }else {
-            let user = DataManager.getInstance().sRtnTD[DataManager.getInstance().sUser_id]
-            for (_, account) in user[RtnTDConstants.accounts].dictionaryValue {
-                let available = account[AccountConstants.available].intValue
-                openVolume.text = "\(available / margin)"
-            }
-        }
+        initData()
+    }
 
-        let quote = DataManager.getInstance().sRtnMD[RtnMDConstants.quotes][DataManager.getInstance().sInstrumentId]
-        upperLimit.text = quote[QuoteConstants.upper_limit].stringValue
-        lowerLimit.text = quote[QuoteConstants.lower_limit].stringValue
+    func initData() {
+        refreshPrice()
+    }
 
+    func switchQuote() {
+        processor.refreshCurrentOperand()
+    }
+
+    func refreshPrice() {
+        let dataManager = DataManager.getInstance()
+        let instrument_id = dataManager.sInstrumentId
+
+        priceTick.text = dataManager.sSearchEntities[instrument_id]?.p_tick
+
+        let decimal = dataManager.getDecimalByPtick(instrumentId: instrument_id)
+        guard let quote = dataManager.sRtnMD.quotes[instrument_id] else {return}
+        let upper = "\(quote.upper_limit ?? 0.0)"
+        let lower = "\(quote.lower_limit ?? 0.0)"
+        upperLimit.text = dataManager.saveDecimalByPtick(decimal: decimal, data: upper)
+        lowerLimit.text = dataManager.saveDecimalByPtick(decimal: decimal, data: lower)
     }
 
     fileprivate func loadViewFromNib() -> UIView {
@@ -124,9 +130,19 @@ class PriceKeyboardViewProcessor {
         case last = "最新价"
     }
 
-    var currentOperand: String = PriceType.last.rawValue
-    var decimalDigit = 0
+    var currentOperand: String = {
+        if CommonConstants.USER_PRICE.elementsEqual(DataManager.getInstance().sPriceType) {return CommonConstants.COUNTERPARTY_PRICE}
+        else {return DataManager.getInstance().sPriceType}
+    }()
     weak var masterView: UITextField!
+
+    func refreshCurrentOperand() {
+        if CommonConstants.USER_PRICE.elementsEqual(DataManager.getInstance().sPriceType) {
+            currentOperand = CommonConstants.COUNTERPARTY_PRICE
+        }else {
+            currentOperand = DataManager.getInstance().sPriceType
+        }
+    }
 
     func numberOperand(_ value: Int) -> String {
         let operand = "\(value)"
@@ -136,7 +152,6 @@ class PriceKeyboardViewProcessor {
         default:
             currentOperand += operand
         }
-
         return currentOperand
     }
 
@@ -167,31 +182,33 @@ class PriceKeyboardViewProcessor {
     func computeValue(_ tag: Int) -> String {
         var value = 0.0
         var output = 0.0
+        let dataManager = DataManager.getInstance()
+        let decimal = dataManager.getDecimalByPtick(instrumentId: dataManager.sInstrumentId)
 
         switch currentOperand {
         case PriceType.lineup.rawValue:
-            let quote = DataManager.getInstance().sRtnMD[RtnMDConstants.quotes][DataManager.getInstance().sInstrumentId]
-            let bid_price1 = (quote[QuoteConstants.bid_price1].stringValue as NSString).doubleValue
-            let ask_price1 = (quote[QuoteConstants.ask_price1].stringValue as NSString).doubleValue
+            guard let quote = dataManager.sRtnMD.quotes[dataManager.sInstrumentId] else {break}
+            let bid_price1 = Double("\(quote.bid_price1 ?? 0.0)") ?? 0.0
+            let ask_price1 = Double("\(quote.ask_price1 ?? 0.0)") ?? 0.0
             value = ask_price1 < bid_price1 ? ask_price1 : bid_price1
-            currentOperand = formatValue(value)
+            currentOperand = dataManager.saveDecimalByPtick(decimal: decimal, data: "\(value)")
             return currentOperand
         case PriceType.opponent.rawValue:
-            let quote = DataManager.getInstance().sRtnMD[RtnMDConstants.quotes][DataManager.getInstance().sInstrumentId]
-            let bid_price1 = (quote[QuoteConstants.bid_price1].stringValue as NSString).doubleValue
-            let ask_price1 = (quote[QuoteConstants.ask_price1].stringValue as NSString).doubleValue
+            guard let quote = dataManager.sRtnMD.quotes[dataManager.sInstrumentId] else {break}
+            let bid_price1 = Double("\(quote.bid_price1 ?? 0.0)") ?? 0.0
+            let ask_price1 = Double("\(quote.ask_price1 ?? 0.0)") ?? 0.0
             value = ask_price1 < bid_price1 ? bid_price1 : ask_price1
-            currentOperand = formatValue(value)
+            currentOperand = dataManager.saveDecimalByPtick(decimal: decimal, data: "\(value)")
             return currentOperand
         case PriceType.market.rawValue:
-            let quote = DataManager.getInstance().sRtnMD[RtnMDConstants.quotes][DataManager.getInstance().sInstrumentId]
-            value = (quote[QuoteConstants.last_price].stringValue as NSString).doubleValue
-            currentOperand = formatValue(value)
+            guard let quote = dataManager.sRtnMD.quotes[dataManager.sInstrumentId] else {break}
+            value = Double("\(quote.last_price ?? 0.0)") ?? 0.0
+            currentOperand = dataManager.saveDecimalByPtick(decimal: decimal, data: "\(value)")
             return currentOperand
         case PriceType.last.rawValue:
-            let quote = DataManager.getInstance().sRtnMD[RtnMDConstants.quotes][DataManager.getInstance().sInstrumentId]
-            value = (quote[QuoteConstants.last_price].stringValue as NSString).doubleValue
-            currentOperand = formatValue(value)
+            guard let quote = dataManager.sRtnMD.quotes[dataManager.sInstrumentId] else {break}
+            value = Double("\(quote.last_price ?? 0.0)") ?? 0.0
+            currentOperand = dataManager.saveDecimalByPtick(decimal: decimal, data: "\(value)")
             return currentOperand
         default:
             value = (currentOperand as NSString).doubleValue
@@ -199,17 +216,23 @@ class PriceKeyboardViewProcessor {
 
         switch tag {
         case PriceKey.subtract.rawValue:
+            guard let p_tick = dataManager.sSearchEntities[dataManager.sInstrumentId]?.p_tick else{break}
+            if p_tick.isEmpty {break}
+            guard let p_tick_int = Double(p_tick) else{break}
             if masterView.offset(from: masterView.beginningOfDocument, to: (masterView.selectedTextRange?.start)!) == 0{
                 output = 0 - value
             }else {
-                output = value - 10
+                output = value - p_tick_int
             }
         case PriceKey.add.rawValue:
-            output = value + 10
+            guard let p_tick = dataManager.sSearchEntities[dataManager.sInstrumentId]?.p_tick else{break}
+            if p_tick.isEmpty {break}
+            guard let p_tick_int = Double(p_tick) else{break}
+            output = value + p_tick_int
         default:
             break
         }
-        currentOperand = formatValue(output)
+        currentOperand = dataManager.saveDecimalByPtick(decimal: decimal, data: "\(output)")
         return currentOperand
     }
 
@@ -237,19 +260,4 @@ class PriceKeyboardViewProcessor {
         return operand
     }
 
-    fileprivate func formatValue(_ value: Double) -> String {
-        var raw = "\(value)"
-        var end = raw.index(before: raw.endIndex)
-        var foundDecimal = false
-        while end != raw.startIndex && (raw[end] == "0" || isDecimal(raw[end])) && !foundDecimal {
-            foundDecimal = isDecimal(raw[end])
-            raw.remove(at: end)
-            end = raw.index(before: end)
-        }
-        return raw
-    }
-
-    fileprivate func isDecimal(_ char: Character) -> Bool {
-        return String(char) == decimalSymbol()
-    }
 }

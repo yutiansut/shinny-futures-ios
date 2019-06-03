@@ -7,27 +7,32 @@
 //
 
 import UIKit
-import SwiftyJSON
 import DeepDiff
 
 class BankTransferViewController:  UIViewController, UITableViewDataSource, UITableViewDelegate, UIScrollViewDelegate {
 
     // MARK: Properties
-    var transfers = [JSON]()
+    var transfers = [Transfer]()
     let dataManager = DataManager.getInstance()
     let dateFormat = DateFormatter()
     var isRefresh = true
-    var bankIds = [String]()
+    var bankIds = [String: String]()
     @IBOutlet weak var tableview: UITableView!
     @IBOutlet weak var future_password: UITextField!
     @IBOutlet weak var bank_password: UITextField!
     @IBOutlet weak var amount: UITextField!
     @IBOutlet weak var bank_label: UILabel!
     @IBOutlet weak var currency_label: UILabel!
+    @IBOutlet weak var bottomConstraint: NSLayoutConstraint!
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        let tap: UITapGestureRecognizer = UITapGestureRecognizer(target: self, action: #selector(dismissKeyboard))
+        view.addGestureRecognizer(tap)
+        
         dateFormat.dateFormat = "HH:mm:ss"
+
+        self.tableview.tableFooterView = UIView()
 
         //Configure the bank
         let bank = DropDownBtn.init(frame: CGRect(x: 0, y: 0, width: 0, height: 0))
@@ -71,6 +76,8 @@ class BankTransferViewController:  UIViewController, UITableViewDataSource, UITa
         NotificationCenter.default.addObserver(self, selector: #selector(loadData), name: Notification.Name(CommonConstants.RtnTDNotification), object: nil)
 
         NotificationCenter.default.addObserver(self, selector: #selector(loadData), name: Notification.Name(CommonConstants.RtnTDNotification), object: nil)
+
+        NotificationCenter.default.addObserver(self, selector: #selector(keyboardWillChange(_:)), name: .UIKeyboardWillChangeFrame, object: nil)
     }
 
     override func viewWillDisappear(_ animated: Bool) {
@@ -79,6 +86,12 @@ class BankTransferViewController:  UIViewController, UITableViewDataSource, UITa
 
     deinit {
         print("银期转帐页销毁")
+    }
+
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        future_password.resignFirstResponder()
+        bank_password.resignFirstResponder()
+        amount.resignFirstResponder()
     }
 
     // MARK: - Table view data source
@@ -99,20 +112,19 @@ class BankTransferViewController:  UIViewController, UITableViewDataSource, UITa
         guard let cell = tableView.dequeueReusableCell(withIdentifier: cellIdentifier, for: indexPath) as? BankTransferTableViewCell  else {
             fatalError("The dequeued cell is not an instance of BankTransferTableViewCell.")
         }
-
-
+        
         if transfers.count != 0 {
             let transfer = transfers[indexPath.row]
-            let datetime = transfer[TransferConstants.datetime].doubleValue
+            let datetime = Double("\(transfer.datetime ?? 0)") ?? 0.0
             let date = Date(timeIntervalSince1970: (datetime / 1000000000))
             cell.datetime.text = dateFormat.string(from: date)
-            let amount = transfer[TransferConstants.amount].floatValue
-            if amount > 0 {cell.amount.textColor = UIColor.red}
-            else {cell.amount.textColor = UIColor.green}
-            cell.amount.text = "\(amount)"
-            let currency = transfer[TransferConstants.currency].stringValue
+            let amount = Float("\(transfer.amount ?? 0.0)") ?? 0.0
+            if amount > 0 {cell.amount.textColor = CommonConstants.RED_TEXT}
+            else {cell.amount.textColor = CommonConstants.GREEN_TEXT}
+            cell.amount.text = String(format: "%.2f", amount)
+            let currency = "\(transfer.currency ?? "-")"
             cell.currency.text = currency
-            let result = transfer[TransferConstants.error_msg].stringValue
+            let result = "\(transfer.error_msg ?? "-")"
             cell.result.text = result
         }
 
@@ -129,21 +141,25 @@ class BankTransferViewController:  UIViewController, UITableViewDataSource, UITa
 
     func tableView(_ tableView: UITableView, viewForHeaderInSection section: Int) -> UIView? {
         let headerView = UIView(frame: CGRect(x: 0, y: 0, width: tableView.frame.size.width, height: 35.0))
-        headerView.backgroundColor = UIColor.darkGray
+         headerView.backgroundColor = CommonConstants.QUOTE_TABLE_HEADER_1
         let stackView = UIStackView(frame: CGRect(x: 0, y: 0, width: tableView.frame.size.width, height: 35.0))
         stackView.distribution = .fillEqually
         let datetime = UILabel()
         datetime.text = "转账时间"
         datetime.textAlignment = .center
+        datetime.textColor = UIColor.white
         let amount = UILabel()
         amount.text = "转账金额"
         amount.textAlignment = .right
+        amount.textColor = UIColor.white
         let currency = UILabel()
         currency.text = "币种"
         currency.textAlignment = .center
+        currency.textColor = UIColor.white
         let result = UILabel()
         result.text = "转账结果"
         result.textAlignment = .center
+        result.textColor = UIColor.white
         stackView.addArrangedSubview(datetime)
         stackView.addArrangedSubview(amount)
         stackView.addArrangedSubview(currency)
@@ -174,40 +190,44 @@ class BankTransferViewController:  UIViewController, UITableViewDataSource, UITa
 
     // MARK: objc Methods
     @objc private func loadData() {
-        let user = dataManager.sRtnTD[dataManager.sUser_id]
+        guard let user = dataManager.sRtnTD.users[dataManager.sUser_id] else {return}
         let bank = self.view.viewWithTag(101) as! DropDownBtn
         let currency = self.view.viewWithTag(102) as! DropDownBtn
+
         if bank.dropView.dropDownOptions.isEmpty {
-            let banks = user[RtnTDConstants.banks].dictionaryValue.map{$0.value}
+            let banks = user.banks.map{$0.value}
             for bankData in banks {
-                bankIds.append(bankData[BankConstants.id].stringValue)
-                bank.dropView.dropDownOptions.append(bankData[BankConstants.name].stringValue)
+                let bankName = "\(bankData.name ?? "")"
+                let bankId = "\(bankData.id ?? "")"
+                bankIds[bankName] = bankId
+                bank.dropView.dropDownOptions.append(bankName)
                 bank.dropView.tableView?.reloadData()
             }
             if !banks.isEmpty{
-                bank.dropView.selected_index = 0
                 bank.setTitle(bank.dropView.dropDownOptions[0], for: .normal)
+                bank.dropView.selected_index = bank.dropView.dropDownOptions[0]
             }else{
                 bank.setTitle("无", for: .normal)
             }
         }
 
         if currency.dropView.dropDownOptions.isEmpty {
-            let currencies = user[RtnTDConstants.accounts].dictionaryValue.map{$0.key}
+            let currencies = user.accounts.map{$0.key}
             for currencyData in currencies {
                 currency.dropView.dropDownOptions.append(currencyData)
                 currency.dropView.tableView?.reloadData()
             }
             if !currencies.isEmpty{
-                currency.dropView.selected_index = 0
                 currency.setTitle(currency.dropView.dropDownOptions[0], for: .normal)
+                currency.dropView.selected_index = currency.dropView.dropDownOptions[0]
             }else{
                 currency.setTitle("无", for: .normal)
             }
         }
 
         if !isRefresh{return}
-        let transfers_tmp = user[RtnTDConstants.transfers].dictionaryValue.sorted{ $0.value[TransferConstants.datetime].stringValue > $1.value[TransferConstants.datetime].stringValue }.map {$0.value}
+        let transfers_tmp = user.transfers.sorted{
+            "\($0.value.datetime ?? "")" > "\($1.value.datetime ?? "")"}.map {$0.value}
 
         if transfers.count == 0 {
             transfers = transfers_tmp
@@ -221,13 +241,43 @@ class BankTransferViewController:  UIViewController, UITableViewDataSource, UITa
 
     }
 
+    // 键盘改变
+    @objc func keyboardWillChange(_ notification: Notification) {
+        if let userInfo = notification.userInfo,
+            let value = userInfo[UIKeyboardFrameEndUserInfoKey] as? NSValue,
+            let duration = userInfo[UIKeyboardAnimationDurationUserInfoKey] as? Double,
+            let curve = userInfo[UIKeyboardAnimationCurveUserInfoKey] as? UInt {
+
+            let frame = value.cgRectValue
+            let intersection = frame.intersection(self.view.frame)
+
+            //self.view.setNeedsLayout()
+            //改变下约束
+            self.bottomConstraint.constant = -intersection.height
+
+            UIView.animate(withDuration: duration, delay: 0.0,
+                           options: UIViewAnimationOptions(rawValue: curve), animations: {
+
+                            self.view.layoutIfNeeded()
+            }, completion: nil)
+        }
+    }
+
+    //Calls this function when the tap is recognized.
+    @objc func dismissKeyboard() {
+        //Causes the view (or one of its embedded text fields) to resign the first responder status.
+        view.endEditing(true)
+    }
+
     //MARK: Actions
     @IBAction func future_bank(_ sender: UIButton) {
         transfer(direction: false)
+        self.view.endEditing(true)
     }
 
     @IBAction func bank_future(_ sender: UIButton) {
         transfer(direction: true)
+        self.view.endEditing(true)
     }
 
     func transfer(direction: Bool) {
@@ -258,18 +308,21 @@ class BankTransferViewController:  UIViewController, UITableViewDataSource, UITa
         }
 
         let bankBtn = self.view.viewWithTag(101) as! DropDownBtn
-        if bankBtn.dropView.selected_index == -1 || bankIds.isEmpty || bankBtn.dropView.selected_index >= bankIds.count{
+        if bankBtn.dropView.selected_index.isEmpty || bankBtn.dropView.dropDownOptions.isEmpty || bankIds.isEmpty{
             ToastUtils.showNegativeMessage(message: "没有绑定银行或银行列表没有正确加载～")
             return
         }
-        let bank_id = bankIds[bankBtn.dropView.selected_index]
+        guard let bank_id = bankIds[bankBtn.dropView.selected_index] else {
+            ToastUtils.showNegativeMessage(message: "此银行银行不在列表中～")
+            return
+        }
 
         let currencyBtn = self.view.viewWithTag(102) as! DropDownBtn
-        if currencyBtn.dropView.selected_index == -1 || currencyBtn.dropView.dropDownOptions.isEmpty || currencyBtn.dropView.selected_index >= currencyBtn.dropView.dropDownOptions.count{
+        if currencyBtn.dropView.selected_index.isEmpty || currencyBtn.dropView.dropDownOptions.isEmpty{
             ToastUtils.showNegativeMessage(message: "币种列表没有正确加载～")
             return
         }
-        let currency = currencyBtn.dropView.dropDownOptions[currencyBtn.dropView.selected_index]
+        let currency = currencyBtn.dropView.selected_index
 
         if direction {
             TDWebSocketUtils.getInstance().sendReqBankTransfer(future_account: future_account, future_password: future_password, bank_id: bank_id, bank_password: bank_password, currency: currency, amount: fabsf(amountF))
@@ -277,5 +330,17 @@ class BankTransferViewController:  UIViewController, UITableViewDataSource, UITa
             TDWebSocketUtils.getInstance().sendReqBankTransfer(future_account: future_account, future_password: future_password, bank_id: bank_id, bank_password: bank_password, currency: currency, amount: -fabsf(amountF))
         }
 
+    }
+
+    @IBAction func futurePasswordDone(_ sender: UITextField) {
+        future_password.resignFirstResponder()
+    }
+
+    @IBAction func bankPasswordDone(_ sender: UITextField) {
+        bank_password.resignFirstResponder()
+    }
+
+    @IBAction func amountDone(_ sender: UITextField) {
+        amount.resignFirstResponder()
     }
 }

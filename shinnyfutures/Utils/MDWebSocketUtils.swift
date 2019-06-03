@@ -10,21 +10,16 @@ import UIKit
 import Starscream
 
 protocol MDWebSocketUtilsDelegate: NSObjectProtocol {
-    //websocet连接成功
-    func websocketDidConnect(socket: MDWebSocketUtils)
-
-    //websocket连接失败
-    func websocketDidDisconnect(socket: MDWebSocketUtils, error: Error?)
-
     //websocket接受文字信息
     func websocketDidReceiveMessage(socket: MDWebSocketUtils, text: String)
 
-    //websocket接受二进制信息
-    func websocketDidReceiveData(socket: MDWebSocketUtils, data: Data)
+    //websocket接受Pong信息
+    func websocketDidReceivePong(socket: MDWebSocketUtils, data: Data?)
 }
 
-class MDWebSocketUtils: NSObject, WebSocketDelegate {
-    var socket: WebSocket!
+class MDWebSocketUtils: NSObject, WebSocketDelegate, WebSocketPongDelegate {
+
+    var socket: WebSocket?
     weak var mdWebSocketUtilsDelegate: MDWebSocketUtilsDelegate?
 
     //单例
@@ -39,74 +34,118 @@ class MDWebSocketUtils: NSObject, WebSocketDelegate {
     // MARK: 连接服务器
     func connect(url: String, index: Int) -> Int{
         socket = WebSocket(url: URL(string: url)!)
-        socket.delegate = self
-        socket.request.addValue("shinnyfutures-iOS", forHTTPHeaderField: "User-Agent")
-        socket.connect()
-        return index + 1
+        guard let socket_ = self.socket else {return 0}
+        socket_.delegate = self
+        socket_.pongDelegate = self
+        let appVersion = DataManager.getInstance().sAppVersion
+        let appBuild = DataManager.getInstance().sAppBuild
+        socket_.request.addValue("shinnyfutures-iOS \(appVersion)(\(appBuild))", forHTTPHeaderField: "User-Agent")
+        socket_.connect()
+        var indexNext = index + 1
+        if indexNext == 7 {
+            indexNext = 0
+        }
+        return indexNext
+    }
+
+    // MARK: 发送ping
+    func ping() {
+        guard let socket_ = self.socket else{return}
+        socket_.write(ping: Data())
+    }
+
+    //MARK: 断线重连
+    func reconnectMD(url: String, index: Int) -> Int {
+        disconnect()
+        return connect(url:url, index: index)
     }
 
     // MARK: 断开连接
     func disconnect() {
-        socket.disconnect()
+        guard let socket_ = self.socket else {return}
+        socket_.disconnect()
     }
 
     // MARK: 行情订阅
     func sendSubscribeQuote(insList: String) {
-        let subscribeQuote = "{\"aid\":\"subscribe_quote\",\"ins_list\":\"\(insList)\"}"
-//        NSLog(subscribeQuote)
-        socket.write(string: subscribeQuote)
+        guard let socket_ = self.socket else {return}
+        let subscribeQuote = ReqSubscribeQuote(aid: "subscribe_quote", ins_list: insList)
+        let jsonEncoder = JSONEncoder()
+        do {
+            let jsonData = try jsonEncoder.encode(subscribeQuote)
+            guard let json = String(data: jsonData, encoding: String.Encoding.utf8) else {return}
+            socket_.write(string: json)
+            DataManager.getInstance().sQuotesText = json
+        } catch {
+            print(error)
+        }
     }
 
     // MARK: 获取合约信息
     func sendPeekMessage() {
-        let peekMessage = "{\"aid\":\"peek_message\"}"
-//        print(peekMessage)
-        socket.write(string: peekMessage)
+        guard let socket_ = self.socket else {return}
+        let peekMessage = ReqPeekMessage(aid: "peek_message")
+        let jsonEncoder = JSONEncoder()
+        do {
+            let jsonData = try jsonEncoder.encode(peekMessage)
+            guard let json = String(data: jsonData, encoding: String.Encoding.utf8) else {return}
+            socket_.write(string: json)
+        } catch {
+            print(error)
+        }
     }
 
     // MARK: 分时图
     func sendSetChart(insList: String) {
-        let setChart = "{\"aid\":\"set_chart\",\"chart_id\":\"\(CommonConstants.CURRENT_DAY)\",\"ins_list\":\"\(insList)\",\"duration\":\"60000000000\",\"trading_day_start\":\"0\",\"trading_day_count\":\"86400000000000\"}"
-//        NSLog(setChart)
-        socket.write(string: setChart)
+        guard let socket_ = self.socket else {return}
+        let duration = 60000000000 as Int64
+        let trading_day_start = 0
+        let trading_day_count = 86400000000000 as Int64
+        let setChart = ReqSetChart(aid: "set_chart", chart_id: CommonConstants.CHART_ID, ins_list: insList, duration: duration, trading_day_start: trading_day_start, trading_day_count: trading_day_count)
+        let jsonEncoder = JSONEncoder()
+        do {
+            let jsonData = try jsonEncoder.encode(setChart)
+            guard let json = String(data: jsonData, encoding: String.Encoding.utf8) else {return}
+            socket_.write(string: json)
+            DataManager.getInstance().sChartsText = json
+        } catch {
+            print(error)
+        }
     }
 
-    // MARK: 日线
-    func sendSetChartDay(insList: String, viewWidth: Int) {
-        let setChart = "{\"aid\":\"set_chart\",\"chart_id\":\"\(CommonConstants.KLINE_DAY)\",\"ins_list\":\"\(insList)\",\"duration\":\"86400000000000\",\"view_width\":\"\(viewWidth)\"}"
-//        NSLog(setChart)
-        socket.write(string: setChart)
-    }
-
-    // MARK: 小时线
-    func sendSetChartHour(insList: String, viewWidth: Int) {
-        let setChart = "{\"aid\":\"set_chart\",\"chart_id\":\"\(CommonConstants.KLINE_HOUR)\",\"ins_list\":\"\(insList)\",\"duration\":\"3600000000000\",\"view_width\":\"\(viewWidth)\"}"
-//        NSLog(setChart)
-        socket.write(string: setChart)
-    }
-
-    // MARK: 分钟线
-    func sendSetChartMinute(insList: String, viewWidth: Int) {
-        let setChart = "{\"aid\":\"set_chart\",\"chart_id\":\"\(CommonConstants.KLINE_MINUTE)\",\"ins_list\":\"\(insList)\",\"duration\":\"300000000000\",\"view_width\":\"\(viewWidth)\"}"
-//        NSLog(setChart)
-        socket.write(string: setChart)
+    // MARK: k线
+    func sendSetChartKline(insList: String, klineType: String, viewWidth: Int) {
+        guard let socket_ = self.socket else {return}
+        guard let duration = Int64(klineType)else {return}
+        let setChart = ReqSetChartKline(aid: "set_chart", chart_id: CommonConstants.CHART_ID, ins_list: insList, duration: duration, view_width: viewWidth)
+        let jsonEncoder = JSONEncoder()
+        do {
+            let jsonData = try jsonEncoder.encode(setChart)
+            guard let json = String(data: jsonData, encoding: String.Encoding.utf8) else {return}
+            socket_.write(string: json)
+            DataManager.getInstance().sChartsText = json
+        } catch {
+            print(error)
+        }
     }
 
     // MARK: WebSocketDelegate
-    public func websocketDidConnect(socket: WebSocketClient) {
-        mdWebSocketUtilsDelegate?.websocketDidConnect(socket: self)
+    func websocketDidConnect(socket: WebSocketClient) {
     }
 
-    public func websocketDidDisconnect(socket: WebSocketClient, error: Error?) {
-        mdWebSocketUtilsDelegate?.websocketDidDisconnect(socket: self, error: error)
+    func websocketDidDisconnect(socket: WebSocketClient, error: Error?) {
     }
 
-    public func websocketDidReceiveMessage(socket: WebSocketClient, text: String) {
+    func websocketDidReceiveMessage(socket: WebSocketClient, text: String) {
         mdWebSocketUtilsDelegate?.websocketDidReceiveMessage(socket: self, text: text)
     }
 
-    public func websocketDidReceiveData(socket: WebSocketClient, data: Data) {
-        mdWebSocketUtilsDelegate?.websocketDidReceiveData(socket: self, data: data)
+    func websocketDidReceiveData(socket: WebSocketClient, data: Data) {
+    }
+
+     // MARK: WebSocketPongDelegate
+    func websocketDidReceivePong(socket: WebSocketClient, data: Data?) {
+        mdWebSocketUtilsDelegate?.websocketDidReceivePong(socket: self, data: data)
     }
 
 }

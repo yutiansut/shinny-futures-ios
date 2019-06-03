@@ -13,6 +13,7 @@ open class KlineMarkerView: MarkerView {
 
     // MARK: Properties
     @IBOutlet weak var yValue: UILabel!
+    @IBOutlet weak var date: UILabel!
     @IBOutlet weak var xValue: UILabel!
     @IBOutlet weak var open: UILabel!
     @IBOutlet weak var high: UILabel!
@@ -25,7 +26,23 @@ open class KlineMarkerView: MarkerView {
     @IBOutlet weak var closeOiDelta: UILabel!
     var markerViewState = "right"
     let dataManager = DataManager.getInstance()
-    var klineType = ""
+    let dateformatter = DateFormatter()
+
+    func resizeXib(heiht: CGFloat, width: CGFloat){
+        var Rect: CGRect = self.frame
+        Rect.size.height = heiht
+//        Rect.size.width = width / 6
+        self.frame = Rect
+        self.layoutIfNeeded()
+    }
+
+    func setDateFormat(fragmentType: String) {
+        if CommonConstants.DAY_FRAGMENT.elementsEqual(fragmentType) {
+            date.isHidden = true
+        }else{
+            date.isHidden = false
+        }
+    }
 
     open override func awakeFromNib() {
         self.layer.borderWidth = 2.0;
@@ -35,51 +52,89 @@ open class KlineMarkerView: MarkerView {
 
     open override func refreshContent(entry: ChartDataEntry, highlight: Highlight) {
         let x = Int(entry.x)
-        let chart = self.chartView as! KlineCombinedChartView
-        klineType = chart.klineType
-        let data = dataManager.sRtnMD[RtnMDConstants.klines][dataManager.sInstrumentId][klineType][KlineConstants.data]["\(x)"]
-        let dataPre = dataManager.sRtnMD[RtnMDConstants.klines][dataManager.sInstrumentId][klineType][KlineConstants.data]["\(x-1)"]
-        if !data.isEmpty && !dataPre.isEmpty{
-            let closePre = dataPre[KlineConstants.close].floatValue
-            let close = data[KlineConstants.close].floatValue
-            let open = data[KlineConstants.open].floatValue
-            let high = data[KlineConstants.high].floatValue
-            let low =  data[KlineConstants.low].floatValue
-            let dateTime = Date(timeIntervalSince1970: TimeInterval(data[KlineConstants.datetime].intValue / 1000000000))
-            let dateformatter = DateFormatter()
-            dateformatter.dateFormat = "yyyy-MM-dd"
-            let yValue = dateformatter.string(from: dateTime)
-            dateformatter.dateFormat = "HH:mm"
-            let xValue = dateformatter.string(from: dateTime)
-            let decimal = dataManager.getDecimalByPtick(instrumentId: dataManager.sInstrumentId)
-            let change = String(format: "%.\(decimal)f", close - closePre)
-            let changePercent = String(format: "%.2f", (close - closePre) / closePre * 100) + "%"
-            let volume = data[KlineConstants.volume].intValue
-            let closeOi = data[KlineConstants.close_oi].intValue
-            self.yValue.text = yValue
-            self.xValue.text = xValue
-            self.high.text = String(format: "%.\(decimal)f", high)
-            self.open.text = String(format: "%.\(decimal)f", open)
-            self.low.text = String(format: "%.\(decimal)f", low)
-            self.close.text = String(format: "%.\(decimal)f", close)
-            self.closeChange.text = change
-            self.closeChangePercent.text = changePercent
-            self.volume.text = "\(volume)"
-            self.closeOi.text = "\(closeOi)"
-            if !dataPre.isEmpty{
-                let closeOiDelta = closeOi - dataPre[KlineConstants.close_oi].intValue
-                self.closeOiDelta.text = "\(closeOiDelta)"
-                if closeOiDelta < 0 {
-                    self.closeOiDelta.textColor = UIColor.green
-                }else{
-                    self.closeOiDelta.textColor = UIColor.red
-                }
-            }else{
-                self.closeOiDelta.text = "-"
-                self.closeOiDelta.textColor = UIColor.white
-            }
-
+        let duration = "\(dataManager.sRtnMD.charts[CommonConstants.CHART_ID]?.state?.duration ?? "")"
+        guard let data = dataManager.sRtnMD.klines[dataManager.sInstrumentId]?[duration]?.datas["\(x)"] else {return}
+        let dataPre = dataManager.sRtnMD.klines[dataManager.sInstrumentId]?[duration]?.datas["\(x - 1)"]
+        let closePre = Float("\(dataPre?.close ?? 0.0)") ?? 0.0
+        let close = Float("\(data.close ?? 0.0)") ?? 0.0
+        let open = Float("\(data.open ?? 0.0)") ?? 0.0
+        let high = Float("\(data.high ?? 0.0)") ?? 0.0
+        let low =  Float("\(data.low ?? 0.0)") ?? 0.0
+        let datetime = (data.datetime as? Int ?? 0) / 1000000000
+        let dateTime = Date(timeIntervalSince1970: TimeInterval(datetime))
+        if !date.isHidden {
+            dateformatter.dateFormat = "yyyyMMdd"
+            let date = dateformatter.string(from: dateTime)
+            self.date.text = date
         }
+        if date.isHidden{
+            dateformatter.dateFormat = "yyyyMMdd"
+        }else {
+            dateformatter.dateFormat = "HH:mm:ss"
+        }
+
+        let xValue = dateformatter.string(from: dateTime)
+        let decimal = dataManager.getDecimalByPtick(instrumentId: dataManager.sInstrumentId)
+        let change = String(format: "%.\(decimal)f", close - closePre)
+        var changePercent = "-"
+        if closePre != 0 {
+            changePercent = String(format: "%.2f", (close - closePre) / closePre * 100) + "%"
+        }
+
+        let volume = data.volume as? Int ?? 0
+        let closeOi = data.close_oi as? Int ?? 0
+        let closeOiPre = (dataPre?.close_oi ?? 0) as? Int ?? 0
+        self.yValue.text = dataManager.yData
+        self.xValue.text = xValue
+        self.high.text = String(format: "%.\(decimal)f", high)
+        self.open.text = String(format: "%.\(decimal)f", open)
+        self.low.text = String(format: "%.\(decimal)f", low)
+        self.close.text = String(format: "%.\(decimal)f", close)
+        self.closeChange.text = change
+        self.closeChangePercent.text = changePercent
+        self.volume.text = "\(volume)"
+        self.closeOi.text = "\(closeOi)"
+
+        if open < closePre {
+            self.open.textColor = CommonConstants.MARK_GREEN
+        }else{
+            self.open.textColor = CommonConstants.MARK_RED
+        }
+
+        if high < closePre {
+            self.high.textColor = CommonConstants.MARK_GREEN
+        }else{
+            self.high.textColor = CommonConstants.MARK_RED
+        }
+
+        if low < closePre {
+            self.low.textColor = CommonConstants.MARK_GREEN
+        }else{
+            self.low.textColor = CommonConstants.MARK_RED
+        }
+
+        if close < closePre {
+            self.close.textColor = CommonConstants.MARK_GREEN
+        }else{
+            self.close.textColor = CommonConstants.MARK_RED
+        }
+
+        if close - closePre < 0 {
+            self.closeChange.textColor = CommonConstants.MARK_GREEN
+            self.closeChangePercent.textColor = CommonConstants.MARK_GREEN
+        }else {
+            self.closeChange.textColor = CommonConstants.MARK_RED
+            self.closeChangePercent.textColor = CommonConstants.MARK_RED
+        }
+
+        let closeOiDelta = closeOi - closeOiPre
+        self.closeOiDelta.text = "\(closeOiDelta)"
+        if closeOiDelta < 0 {
+            self.closeOiDelta.textColor = CommonConstants.MARK_GREEN
+        }else{
+            self.closeOiDelta.textColor = CommonConstants.MARK_RED
+        }
+
         super.refreshContent(entry: entry, highlight: highlight)
     }
 

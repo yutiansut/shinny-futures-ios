@@ -7,12 +7,12 @@
 //
 
 import UIKit
-import SwiftyJSON
 import DeepDiff
 
 class PositionTableViewController: UITableViewController {
     // MARK: Properties
-    var positions = [JSON]()
+    var positions = [Position]()
+    var oldData = [Position]()
     let dataManager = DataManager.getInstance()
     var isRefresh = true
 
@@ -20,6 +20,7 @@ class PositionTableViewController: UITableViewController {
         super.viewDidLoad()
         // make tableview look better in ipad
         tableView.cellLayoutMarginsFollowReadableWidth = true
+        tableView.tableFooterView = UIView()
     }
 
     override func viewWillAppear(_ animated: Bool) {
@@ -61,61 +62,51 @@ class PositionTableViewController: UITableViewController {
 
         // Fetches the appropriate quote for the data source layout.
         let position = positions[indexPath.row]
-        let instrumentId = position[PositionConstants.exchange_id].stringValue + "." + position[PositionConstants.instrument_id].stringValue
+        let instrumentId = "\(position.exchange_id ?? "")" + "." + "\(position.instrument_id ?? "")"
         if let search = dataManager.sSearchEntities[instrumentId] {
             cell.name.text = search.instrument_name
         } else {
-            cell.name.text = instrumentId
+            cell.name.text = "\(position.instrument_id ?? "")"
         }
 
         let decimal = dataManager.getDecimalByPtick(instrumentId: instrumentId) + 1
 
-        let volume_long = position[PositionConstants.volume_long].intValue
-        let available_long = volume_long - position[PositionConstants.volume_long_frozen_today].intValue - position[PositionConstants.volume_long_frozen_his].intValue
+        let volume_long = (position.volume_long as? Int) ?? 0
+        let volume_long_frozen_today = (position.volume_long_frozen_today as? Int) ?? 0
+        let volume_long_frozen_his = (position.volume_long_frozen_his as? Int) ?? 0
+        let available_long = volume_long - volume_long_frozen_today - volume_long_frozen_his
 
-        let volume_short = position[PositionConstants.volume_short].intValue
-        let available_short = volume_short - position[PositionConstants.volume_short_frozen_his].intValue - position[PositionConstants.volume_short_frozen_today].intValue
+        let volume_short = (position.volume_short as? Int) ?? 0
+        let volume_short_frozen_today = (position.volume_short_frozen_today as? Int) ?? 0
+        let volume_short_frozen_his = (position.volume_short_frozen_his as? Int) ?? 0
+        let available_short = volume_short - volume_short_frozen_today - volume_short_frozen_his
 
         var profit = 0.0
 
         if volume_long != 0 && volume_short == 0 {
             cell.direction.text = "多"
-            cell.direction.textColor = UIColor.red
+            cell.direction.textColor = CommonConstants.RED_TEXT
             cell.available.text = "\(available_long)"
             cell.volume.text = "\(volume_long)"
-            let open_price_long = position[PositionConstants.open_price_long].floatValue
-            cell.openPrice.text = dataManager.saveDecimalByPtick(decimal: decimal, data: "\(open_price_long)")
-            profit = position[PositionConstants.float_profit_long].doubleValue
+            let open_price_long = "\(position.open_price_long ?? 0.0)"
+            cell.openPrice.text = dataManager.saveDecimalByPtick(decimal: decimal, data: open_price_long)
+            profit = Double("\(position.float_profit_long ?? 0.0)") ?? 0.0
             cell.profit.text = dataManager.saveDecimalByPtick(decimal: 2, data: "\(profit)")
         } else if volume_long == 0 && volume_short != 0 {
             cell.direction.text = "空"
-            cell.direction.textColor = UIColor.green
+            cell.direction.textColor = CommonConstants.GREEN_TEXT
             cell.available.text = "\(available_short)"
             cell.volume.text = "\(volume_short)"
-            let open_price_short = position[PositionConstants.open_price_short].floatValue
-            cell.openPrice.text = dataManager.saveDecimalByPtick(decimal: decimal, data: "\(open_price_short)")
-            profit = position[PositionConstants.float_profit_short].doubleValue
+            let open_price_short = "\(position.open_price_short ?? 0.0)"
+            cell.openPrice.text = dataManager.saveDecimalByPtick(decimal: decimal, data: open_price_short)
+            profit = Double("\(position.float_profit_short ?? 0.0)") ?? 0.0
             cell.profit.text = dataManager.saveDecimalByPtick(decimal: 2, data: "\(profit)")
-        } else if volume_long != 0 && volume_short != 0 {
-            cell.direction.text = "双向"
-            cell.direction.textColor = UIColor.white
-            cell.available.text = "\(available_long)" + "/" + "\(available_short)"
-            cell.volume.text = "\(volume_long)" + "/" + "\(volume_short)"
-            let open_price_long = position[PositionConstants.open_price_long].floatValue
-            let open_price_long_s = dataManager.saveDecimalByPtick(decimal: decimal, data: "\(open_price_long)")
-            let open_price_short = position[PositionConstants.open_price_short].floatValue
-            let open_price_short_s = dataManager.saveDecimalByPtick(decimal: decimal, data: "\(open_price_short)")
-            cell.openPrice.text = open_price_long_s + "/" + open_price_short_s
-            let profit_long = dataManager.saveDecimalByPtick(decimal: 2, data: position[PositionConstants.float_profit_long].stringValue)
-            let profit_short = dataManager.saveDecimalByPtick(decimal: 2, data: position[PositionConstants.float_profit_short].stringValue)
-            cell.profit.text = profit_long + "/" + profit_short
-            profit = position[PositionConstants.float_profit_long].doubleValue
         }
 
         if profit > 0 {
-            cell.profit.textColor = UIColor.red
+            cell.profit.textColor = CommonConstants.RED_TEXT
         } else if profit < 0 {
-            cell.profit.textColor = UIColor.green
+            cell.profit.textColor = CommonConstants.GREEN_TEXT
         } else {
             cell.profit.textColor = UIColor.white
         }
@@ -125,7 +116,11 @@ class PositionTableViewController: UITableViewController {
 
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: false)
-        let instrumentId = positions[indexPath.row][PositionConstants.exchange_id].stringValue + "." + positions[indexPath.row][PositionConstants.instrument_id].stringValue
+        if let cell = tableView.cellForRow(at: indexPath) as? PositionTableViewCell{
+            dataManager.sPositionDirection = cell.direction.text ?? ""
+        }
+        let position = positions[indexPath.row]
+        let instrumentId = "\(position.exchange_id ?? "")" + "." + "\(position.instrument_id ?? "")"
         if !dataManager.sInstrumentId.elementsEqual(instrumentId){
             dataManager.sInstrumentId = instrumentId
             NotificationCenter.default.post(name: Notification.Name(CommonConstants.SwitchQuoteNotification), object: nil)
@@ -140,7 +135,7 @@ class PositionTableViewController: UITableViewController {
 
     override func tableView(_ tableView: UITableView, viewForHeaderInSection section: Int) -> UIView? {
         let headerView = UIView(frame: CGRect(x: 0, y: 0, width: tableView.frame.size.width, height: 35.0))
-        headerView.backgroundColor = UIColor.darkGray
+         headerView.backgroundColor = CommonConstants.QUOTE_TABLE_HEADER_1
         let stackView = UIStackView(frame: CGRect(x: 0, y: 0, width: tableView.frame.size.width, height: 35.0))
         stackView.distribution = .fillProportionally
         let name = UILabel()
@@ -148,31 +143,37 @@ class PositionTableViewController: UITableViewController {
         name.adjustsFontSizeToFitWidth = true
         name.text = "合约"
         name.textAlignment = .center
+        name.textColor = UIColor.white
         let direction = UILabel()
         direction.font = UIFont(name: "Helvetica Neue", size: 15.0)
         direction.adjustsFontSizeToFitWidth = true
         direction.text = "多空"
         direction.textAlignment = .center
+        direction.textColor = UIColor.white
         let volume = UILabel()
         volume.font = UIFont(name: "Helvetica Neue", size: 15.0)
         volume.adjustsFontSizeToFitWidth = true
         volume.text = "手数"
-        volume.textAlignment = .right
+        volume.textAlignment = .center
+        volume.textColor = UIColor.white
         let available = UILabel()
         available.font = UIFont(name: "Helvetica Neue", size: 15.0)
         available.adjustsFontSizeToFitWidth = true
         available.text = "可用"
-        available.textAlignment = .right
+        available.textAlignment = .center
+        available.textColor = UIColor.white
         let openInterest = UILabel()
         openInterest.font = UIFont(name: "Helvetica Neue", size: 15.0)
         openInterest.adjustsFontSizeToFitWidth = true
         openInterest.text = "开仓均价"
         openInterest.textAlignment = .right
+        openInterest.textColor = UIColor.white
         let profit = UILabel()
         profit.font = UIFont(name: "Helvetica Neue", size: 15.0)
         profit.adjustsFontSizeToFitWidth = true
         profit.text = "逐笔盈亏"
         profit.textAlignment = .right
+        profit.textColor = UIColor.white
         stackView.addArrangedSubview(name)
         stackView.addArrangedSubview(direction)
         stackView.addArrangedSubview(volume)
@@ -181,10 +182,10 @@ class PositionTableViewController: UITableViewController {
         stackView.addArrangedSubview(profit)
         headerView.addSubview(stackView)
         NSLayoutConstraint.activate([
-            name.widthAnchor.constraint(equalTo: stackView.widthAnchor, multiplier: 0.25),
-            direction.widthAnchor.constraint(equalTo: stackView.widthAnchor, multiplier: 1/12),
-            volume.widthAnchor.constraint(equalTo: stackView.widthAnchor, multiplier: 1/12),
-            available.widthAnchor.constraint(equalTo: stackView.widthAnchor, multiplier: 1/12),
+            name.widthAnchor.constraint(equalTo: stackView.widthAnchor, multiplier: 0.2),
+            direction.widthAnchor.constraint(equalTo: stackView.widthAnchor, multiplier: 0.1),
+            volume.widthAnchor.constraint(equalTo: stackView.widthAnchor, multiplier: 0.1),
+            available.widthAnchor.constraint(equalTo: stackView.widthAnchor, multiplier: 0.1),
             openInterest.widthAnchor.constraint(equalTo: stackView.widthAnchor, multiplier: 0.25),
             profit.widthAnchor.constraint(equalTo: stackView.widthAnchor, multiplier: 0.25)
             ])
@@ -214,15 +215,18 @@ class PositionTableViewController: UITableViewController {
     // MARK: objc Methods
     @objc private func loadData() {
         if !isRefresh {return}
-        let user = dataManager.sRtnTD[dataManager.sUser_id]
-        let rtnPositions = user[RtnTDConstants.positions].dictionaryValue.sorted(by: <).map({$0.value})
+        guard let user = dataManager.sRtnTD.users[dataManager.sUser_id] else {return}
+        let rtnPositions = user.positions.sorted{$0.key < $1.key}.map({$0.value})
         let oldData = positions
         positions.removeAll()
         for position in rtnPositions{
-            let volume_long = position[PositionConstants.volume_long].intValue
-            let volume_short = position[PositionConstants.volume_short].intValue
-            if volume_long != 0 || volume_short != 0{
-                positions.append(position)
+            let volume_long = (position.volume_long as? Int) ?? 0
+            let volume_short = (position.volume_short as? Int) ?? 0
+            if volume_long != 0 && volume_short != 0{
+                positions.append(position.copyLong())
+                positions.append(position.copyShort())
+            } else if !(volume_long == 0 && volume_short == 0){
+                positions.append(position.copy() as! Position)
             }
         }
         if oldData.count == 0 {
